@@ -2,6 +2,7 @@ package com.salamasoa.salamasoa_app.view;
 
 import com.salamasoa.salamasoa_app.service.MedecinService;
 import com.salamasoa.salamasoa_app.service.PatientService;
+import com.salamasoa.salamasoa_app.service.VisiteService;
 import org.springframework.stereotype.Component;
 
 import javax.swing.*;
@@ -22,10 +23,16 @@ public class MainFrame extends JFrame {
     //SERVICES
     private final PatientService patientService;
     private final MedecinService medecinService;
-    public MainFrame(PatientService _patientService, MedecinService _medecinService) {
+    private final VisiteService visiteService;
+
+    public MainFrame(
+            PatientService _patientService,
+            MedecinService _medecinService,
+            VisiteService _visiteService) {
 
         this.patientService = _patientService;
         this.medecinService = _medecinService;
+        this.visiteService = _visiteService;
         setTitle("SalamaSoa - Centre médical");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1250, 760);
@@ -64,7 +71,11 @@ public class MainFrame extends JFrame {
         );
 
         pagesPanel.add(
-                new VisitePanel(),
+                new VisitePanel(
+                        visiteService,
+                        patientService,
+                        medecinService
+                ),
                 PAGE_VISITES
         );
 

@@ -1,5 +1,12 @@
 package com.salamasoa.salamasoa_app.view;
 
+import com.salamasoa.salamasoa_app.model.Medecin;
+import com.salamasoa.salamasoa_app.model.Patient;
+import com.salamasoa.salamasoa_app.model.StatutVisite;
+import com.salamasoa.salamasoa_app.model.Visite;
+import com.salamasoa.salamasoa_app.service.MedecinService;
+import com.salamasoa.salamasoa_app.service.PatientService;
+import com.salamasoa.salamasoa_app.service.VisiteService;
 import com.salamasoa.salamasoa_app.view.Form.VisiteFormDialog;
 
 import javax.swing.*;
@@ -10,8 +17,13 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
-import java.util.Calendar;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class VisitePanel extends JPanel {
 
@@ -20,13 +32,32 @@ public class VisitePanel extends JPanel {
     private static final Color SECONDARY_TEXT_COLOR = new Color(125, 125, 130);
     private static final Color BORDER_COLOR = new Color(235, 235, 237);
 
-    public VisitePanel() {
+    private static final DateTimeFormatter TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("HH:mm");
+
+    private final VisiteService visiteService;
+    private final PatientService patientService;
+    private final MedecinService medecinService;
+    private JSpinner dateSpinner;
+    private JTable visiteTable;
+    private DefaultTableModel tableModel;
+
+    private JLabel totalVisitsValueLabel;
+    private JLabel waitingValueLabel;
+    private JLabel completedValueLabel;
+
+    public VisitePanel(VisiteService _visiteService,PatientService _patientService,MedecinService _medecinService) {
+        this.visiteService = _visiteService;
+        this.medecinService = _medecinService;
+        this.patientService = _patientService;
         setBackground(Color.WHITE);
         setBorder(new EmptyBorder(18, 26, 26, 26));
         setLayout(new BorderLayout(0, 16));
 
         add(createTopSection(), BorderLayout.NORTH);
         add(createVisitsSection(), BorderLayout.CENTER);
+
+        loadVisitesForSelectedDate();
     }
 
     private JPanel createTopSection() {
@@ -77,19 +108,99 @@ public class VisitePanel extends JPanel {
         newVisitButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         newVisitButton.setBorder(new EmptyBorder(10, 16, 10, 16));
 
-        newVisitButton.addActionListener(event -> {
-            Window window = SwingUtilities.getWindowAncestor(this);
-
-            VisiteFormDialog dialog = new VisiteFormDialog(window);
-            dialog.setVisible(true);
-        });
+        newVisitButton.addActionListener(event ->
+                openNewVisiteDialog()
+        );
 
         headerPanel.add(titlePanel, BorderLayout.WEST);
         headerPanel.add(newVisitButton, BorderLayout.EAST);
 
         return headerPanel;
     }
+    private void openNewVisiteDialog() {
+        new SwingWorker<VisiteFormLists, Void>() {
 
+            @Override
+            protected VisiteFormLists doInBackground() {
+                List<Patient> activePatients = patientService
+                        .getAllPatients()
+                        .stream()
+                        .filter(Patient::isActif)
+                        .toList();
+
+                List<Medecin> activeMedecins = medecinService
+                        .getAllMedecins()
+                        .stream()
+                        .filter(Medecin::isActif)
+                        .toList();
+
+                return new VisiteFormLists(
+                        activePatients,
+                        activeMedecins
+                );
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    VisiteFormLists formLists = get();
+
+                    if (formLists.patients().isEmpty()) {
+                        JOptionPane.showMessageDialog(
+                                VisitePanel.this,
+                                "Aucun patient actif n'est disponible.",
+                                "Aucun patient disponible",
+                                JOptionPane.WARNING_MESSAGE
+                        );
+                        return;
+                    }
+
+                    if (formLists.medecins().isEmpty()) {
+                        JOptionPane.showMessageDialog(
+                                VisitePanel.this,
+                                "Aucun médecin actif n'est disponible.",
+                                "Aucun médecin disponible",
+                                JOptionPane.WARNING_MESSAGE
+                        );
+                        return;
+                    }
+
+                    Window window =
+                            SwingUtilities.getWindowAncestor(VisitePanel.this);
+
+                    VisiteFormDialog dialog = new VisiteFormDialog(
+                            window,
+                            formLists.patients(),
+                            formLists.medecins()
+                    );
+
+                    dialog.setVisible(true);
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    String message = exception.getCause() == null
+                            ? exception.getMessage()
+                            : exception.getCause().getMessage();
+
+                    JOptionPane.showMessageDialog(
+                            VisitePanel.this,
+                            "Impossible de charger les listes :\n"
+                                    + message,
+                            "Erreur MySQL",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    private record VisiteFormLists(
+            List<Patient> patients,
+            List<Medecin> medecins
+    ) {
+    }
     private JPanel createStatisticsPanel() {
         JPanel statisticsPanel = new JPanel(new GridLayout(1, 3, 12, 0));
         statisticsPanel.setBackground(Color.WHITE);
@@ -97,9 +208,13 @@ public class VisitePanel extends JPanel {
         statisticsPanel.setPreferredSize(new Dimension(0, 84));
         statisticsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        totalVisitsValueLabel = new JLabel("0");
+        waitingValueLabel = new JLabel("0");
+        completedValueLabel = new JLabel("0");
+
         statisticsPanel.add(createStatisticCard(
-                "AUJOURD'HUI",
-                "42",
+                "VISITES DU JOUR",
+                totalVisitsValueLabel,
                 "▣",
                 new Color(255, 228, 235),
                 PRIMARY_COLOR
@@ -107,15 +222,15 @@ public class VisitePanel extends JPanel {
 
         statisticsPanel.add(createStatisticCard(
                 "SALLE D'ATTENTE",
-                "7",
+                waitingValueLabel,
                 "♙",
                 new Color(243, 238, 241),
                 new Color(115, 95, 105)
         ));
 
         statisticsPanel.add(createStatisticCard(
-                "EFFECTUÉE",
-                "18",
+                "EFFECTUÉES",
+                completedValueLabel,
                 "◎",
                 new Color(243, 238, 241),
                 new Color(115, 95, 105)
@@ -126,7 +241,7 @@ public class VisitePanel extends JPanel {
 
     private JPanel createStatisticCard(
             String title,
-            String value,
+            JLabel valueLabel,
             String icon,
             Color iconBackground,
             Color iconColor
@@ -145,7 +260,6 @@ public class VisitePanel extends JPanel {
         titleLabel.setForeground(SECONDARY_TEXT_COLOR);
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel valueLabel = new JLabel(value);
         valueLabel.setFont(new Font("SansSerif", Font.BOLD, 23));
         valueLabel.setForeground(TEXT_COLOR);
         valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -181,16 +295,15 @@ public class VisitePanel extends JPanel {
         filterLabel.setFont(new Font("SansSerif", Font.BOLD, 11));
         filterLabel.setForeground(TEXT_COLOR);
 
-        Calendar calendar = Calendar.getInstance();
-
-        SpinnerDateModel dateModel = new SpinnerDateModel(
-                calendar.getTime(),
-                null,
-                null,
-                Calendar.DAY_OF_MONTH
+        dateSpinner = new JSpinner(
+                new SpinnerDateModel(
+                        new Date(),
+                        null,
+                        null,
+                        java.util.Calendar.DAY_OF_MONTH
+                )
         );
 
-        JSpinner dateSpinner = new JSpinner(dateModel);
         dateSpinner.setFont(new Font("SansSerif", Font.PLAIN, 11));
         dateSpinner.setPreferredSize(new Dimension(120, 28));
         dateSpinner.setBorder(new LineBorder(BORDER_COLOR, 1, true));
@@ -199,6 +312,10 @@ public class VisitePanel extends JPanel {
                 new JSpinner.DateEditor(dateSpinner, "dd/MM/yyyy");
 
         dateSpinner.setEditor(dateEditor);
+
+        dateSpinner.addChangeListener(event ->
+                loadVisitesForSelectedDate()
+        );
 
         JButton todayButton = new JButton("Aujourd'hui");
         todayButton.setFont(new Font("SansSerif", Font.PLAIN, 10));
@@ -241,95 +358,193 @@ public class VisitePanel extends JPanel {
                 "HEURE",
                 "NOM DU PATIENT",
                 "SEXE",
-                "STATUS",
+                "STATUT",
                 "ACTION"
         };
 
-        Object[][] visitData = {
-                {
-                        "10:00 AM",
-                        "<html><b>Sarah Jenkins</b>"
-                                + "<br><span style='font-size:8px; color:#888888;'>ID: 8492-A</span></html>",
-                        "Homme",
-                        "En cours",
-                        "⋮"
-                },
-                {
-                        "10:30 AM",
-                        "<html><b>Michael Reed</b>"
-                                + "<br><span style='font-size:8px; color:#888888;'>ID: 9123-B</span></html>",
-                        "Femme",
-                        "Effectuée",
-                        "⋮"
-                },
-                {
-                        "11:00 AM",
-                        "<html><b>Elena Torres</b>"
-                                + "<br><span style='font-size:8px; color:#888888;'>ID: 3341-C</span></html>",
-                        "Homme",
-                        "Retardé (15mn)",
-                        "⋮"
-                },
-                {
-                        "14:00 PM",
-                        "<html><b>David Wu</b>"
-                                + "<br><span style='font-size:8px; color:#888888;'>ID: 7752-D</span></html>",
-                        "Homme",
-                        "Planifiée",
-                        "⋮"
-                }
-        };
+        tableModel = new DefaultTableModel(columnNames, 0) {
 
-        DefaultTableModel tableModel = new DefaultTableModel(
-                visitData,
-                columnNames
-        ) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
 
-        JTable visitTable = new JTable(tableModel);
-        visitTable.setRowHeight(42);
-        visitTable.setFont(new Font("SansSerif", Font.PLAIN, 9));
-        visitTable.setForeground(TEXT_COLOR);
-        visitTable.setBackground(Color.WHITE);
-        visitTable.setGridColor(BORDER_COLOR);
-        visitTable.setShowVerticalLines(false);
-        visitTable.setShowHorizontalLines(true);
-        visitTable.setRowSelectionAllowed(false);
-        visitTable.setFocusable(false);
+        visiteTable = new JTable(tableModel);
+        visiteTable.setRowHeight(42);
+        visiteTable.setFont(new Font("SansSerif", Font.PLAIN, 9));
+        visiteTable.setForeground(TEXT_COLOR);
+        visiteTable.setBackground(Color.WHITE);
+        visiteTable.setGridColor(BORDER_COLOR);
+        visiteTable.setShowVerticalLines(false);
+        visiteTable.setShowHorizontalLines(true);
+        visiteTable.setRowSelectionAllowed(false);
+        visiteTable.setFocusable(false);
 
-        visitTable.getColumnModel().getColumn(0).setPreferredWidth(75);
-        visitTable.getColumnModel().getColumn(1).setPreferredWidth(155);
-        visitTable.getColumnModel().getColumn(2).setPreferredWidth(105);
-        visitTable.getColumnModel().getColumn(3).setPreferredWidth(150);
-        visitTable.getColumnModel().getColumn(4).setPreferredWidth(55);
+        visiteTable.getColumnModel().getColumn(0).setPreferredWidth(75);
+        visiteTable.getColumnModel().getColumn(1).setPreferredWidth(210);
+        visiteTable.getColumnModel().getColumn(2).setPreferredWidth(105);
+        visiteTable.getColumnModel().getColumn(3).setPreferredWidth(150);
+        visiteTable.getColumnModel().getColumn(4).setPreferredWidth(55);
 
-        visitTable.setDefaultRenderer(Object.class, new VisitCellRenderer());
+        visiteTable.setDefaultRenderer(Object.class, new VisiteCellRenderer());
 
-        visitTable.getColumnModel().getColumn(3)
+        visiteTable.getColumnModel().getColumn(3)
                 .setCellRenderer(new StatusCellRenderer());
 
-        visitTable.getColumnModel().getColumn(4)
+        visiteTable.getColumnModel().getColumn(4)
                 .setCellRenderer(new ActionCellRenderer());
 
-        JTableHeader tableHeader = visitTable.getTableHeader();
+        JTableHeader tableHeader = visiteTable.getTableHeader();
         tableHeader.setFont(new Font("SansSerif", Font.BOLD, 8));
         tableHeader.setForeground(new Color(115, 115, 120));
         tableHeader.setBackground(new Color(253, 251, 251));
         tableHeader.setPreferredSize(new Dimension(0, 30));
         tableHeader.setReorderingAllowed(false);
 
-        JScrollPane scrollPane = new JScrollPane(visitTable);
+        JScrollPane scrollPane = new JScrollPane(visiteTable);
         scrollPane.setBorder(null);
         scrollPane.getViewport().setBackground(Color.WHITE);
 
         return scrollPane;
     }
 
-    private class VisitCellRenderer extends DefaultTableCellRenderer {
+    /**
+     * Récupère depuis MySQL les visites de la date sélectionnée.
+     */
+    private void loadVisitesForSelectedDate() {
+        LocalDate selectedDate = convertDateToLocalDate(
+                (Date) dateSpinner.getValue()
+        );
+
+        new SwingWorker<List<Visite>, Void>() {
+
+            @Override
+            protected List<Visite> doInBackground() {
+                return visiteService.getVisitesByDate(selectedDate);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<Visite> visites = get();
+
+                    displayVisites(visites);
+                    updateStatistics(visites);
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    String message = exception.getCause() == null
+                            ? exception.getMessage()
+                            : exception.getCause().getMessage();
+
+                    JOptionPane.showMessageDialog(
+                            VisitePanel.this,
+                            "Impossible de charger les visites :\n"
+                                    + message,
+                            "Erreur MySQL",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    private void displayVisites(List<Visite> visites) {
+        tableModel.setRowCount(0);
+
+        for (Visite visite : visites) {
+            tableModel.addRow(new Object[]{
+                    visite.getDateheure().format(TIME_FORMATTER),
+                    formatPatientName(visite),
+                    formatSexe(visite),
+                    visite.getStatut().getLibelle(),
+                    "⋮"
+            });
+        }
+    }
+
+    private void updateStatistics(List<Visite> visites) {
+        long waitingCount = visites.stream()
+                .filter(visite ->
+                        visite.getStatut() == StatutVisite.PLANIFIEE
+                                || visite.getStatut()
+                                == StatutVisite.EN_COURS
+                )
+                .count();
+
+        long completedCount = visites.stream()
+                .filter(visite ->
+                        visite.getStatut() == StatutVisite.TERMINEE
+                )
+                .count();
+
+        totalVisitsValueLabel.setText(
+                String.valueOf(visites.size())
+        );
+
+        waitingValueLabel.setText(
+                String.valueOf(waitingCount)
+        );
+
+        completedValueLabel.setText(
+                String.valueOf(completedCount)
+        );
+    }
+    private String formatPatientName(Visite visite) {
+        String patientNom = visite.getPatient().getNom() == null
+                ? ""
+                : visite.getPatient().getNom();
+
+        String patientPrenom = visite.getPatient().getPrenom() == null
+                ? ""
+                : visite.getPatient().getPrenom();
+
+        String medecinNom = visite.getMedecin().getNom() == null
+                ? ""
+                : visite.getMedecin().getNom();
+
+        String medecinPrenom = visite.getMedecin().getPrenom() == null
+                ? ""
+                : visite.getMedecin().getPrenom();
+
+        String patientFullName =
+                (patientNom + " " + patientPrenom).trim();
+
+        String medecinFullName =
+                (medecinNom + " " + medecinPrenom).trim();
+
+        return "<html><b>"
+                + patientFullName
+                + "</b><br><span style='font-size:8px; color:#888888;'>"
+                + medecinFullName
+                + "</span></html>";
+    }
+    private String formatSexe(Visite visite) {
+        char sexe = visite.getPatient().getSexe();
+
+        if (sexe == 'H' || sexe == 'h') {
+            return "Homme";
+        }
+
+        if (sexe == 'F' || sexe == 'f') {
+            return "Femme";
+        }
+
+        return "Non renseigné";
+    }
+
+    private LocalDate convertDateToLocalDate(Date date) {
+        Instant instant = date.toInstant();
+
+        return instant
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate();
+    }
+
+    private class VisiteCellRenderer extends DefaultTableCellRenderer {
 
         @Override
         public Component getTableCellRendererComponent(
@@ -393,15 +608,18 @@ public class VisitePanel extends JPanel {
             if (status.equals("En cours")) {
                 statusLabel.setForeground(new Color(0, 135, 120));
                 statusLabel.setBackground(new Color(218, 247, 241));
-            } else if (status.equals("Retardé (15mn)")) {
+
+            } else if (status.equals("Annulée")) {
                 statusLabel.setForeground(new Color(200, 45, 45));
                 statusLabel.setBackground(new Color(255, 234, 234));
-            } else if (status.equals("Planifiée")) {
-                statusLabel.setForeground(new Color(65, 100, 180));
-                statusLabel.setBackground(new Color(228, 237, 255));
-            } else {
+
+            } else if (status.equals("Terminée")) {
                 statusLabel.setForeground(new Color(130, 130, 135));
                 statusLabel.setBackground(new Color(244, 242, 243));
+
+            } else {
+                statusLabel.setForeground(new Color(65, 100, 180));
+                statusLabel.setBackground(new Color(228, 237, 255));
             }
 
             return panel;

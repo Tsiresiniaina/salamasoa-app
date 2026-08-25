@@ -28,4 +28,17 @@ public class Patient {
     private String adresse;
     @Column(name = "actif")
     private boolean actif;
+
+    @Override
+    public String toString() {
+        String patientNom = nom == null ? "" : nom;
+        String patientPrenom = prenom == null ? "" : prenom;
+
+        String fullName = (patientNom + " " + patientPrenom).trim();
+
+        /*
+         * Sécurité : s'il n'y a aucun nom, afficher le code patient.
+         */
+        return fullName.isBlank() ? codepat : fullName;
+    }
 }

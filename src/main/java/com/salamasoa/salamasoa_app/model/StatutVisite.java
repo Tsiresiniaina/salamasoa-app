@@ -1,16 +1,19 @@
 package com.salamasoa.salamasoa_app.model;
 
 public enum StatutVisite {
-    PLANIFIE("Planifiée"),
-    En_COURS("En cours"),
-    TERMINEE("termniée"),
+
+    PLANIFIEE("Planifiée"),
+    EN_COURS("En cours"),
+    TERMINEE("Terminée"),
     ANNULEE("Annulée");
 
     private final String libelle;
-    StatutVisite(String _libelle){
-        this.libelle = _libelle;
+
+    StatutVisite(String libelle) {
+        this.libelle = libelle;
     }
-    public String getLibelle(){
-        return  libelle;
+
+    public String getLibelle() {
+        return libelle;
     }
 }

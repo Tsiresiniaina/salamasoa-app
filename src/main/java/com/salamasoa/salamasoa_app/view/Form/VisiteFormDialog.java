@@ -1,16 +1,26 @@
 package com.salamasoa.salamasoa_app.view.Form;
 
+import com.salamasoa.salamasoa_app.model.Medecin;
+import com.salamasoa.salamasoa_app.model.Patient;
+import com.salamasoa.salamasoa_app.view.GlassPane.BackgroundOverlay;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
-
-import com.salamasoa.salamasoa_app.view.GlassPane.BackgroundOverlay;
-
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
 
 public class VisiteFormDialog extends JDialog {
 
@@ -20,22 +30,35 @@ public class VisiteFormDialog extends JDialog {
     private static final Color INPUT_BACKGROUND = new Color(248, 248, 250);
     private static final Color PLACEHOLDER_COLOR = new Color(150, 150, 155);
 
-    private static final String NAME_PLACEHOLDER = "e.g. Jane Doe";
-    private static final String ADDRESS_PLACEHOLDER = "Adresse du patient";
-    private static final String DATE_PLACEHOLDER = "00/00/0000";
+    private final List<Patient> allPatients;
 
-    private final JTextField fullNameField;
-    private final JRadioButton maleButton;
-    private final JRadioButton femaleButton;
-    private final JComboBox<String> doctorComboBox;
-    private final JTextArea addressArea;
-    private final JTextField dateField;
+    private final JComboBox<Patient> patientComboBox;
+    private final JComboBox<Medecin> doctorComboBox;
+
+    private final JSpinner dateSpinner;
+    private final JSpinner timeSpinner;
 
     private boolean saved = false;
+    private boolean filteringPatients = false;
+
     private final BackgroundOverlay.OverlayHandle overlayHandle;
 
+    /*
+     * Constructeur temporaire conservé pour ne pas casser
+     * les anciens appels au formulaire.
+     */
     public VisiteFormDialog(Window owner) {
+        this(owner, List.of(), List.of());
+    }
+
+    public VisiteFormDialog(
+            Window owner,
+            List<Patient> patients,
+            List<Medecin> medecins
+    ) {
         super(owner, "Enregistrement de visite", ModalityType.APPLICATION_MODAL);
+
+        this.allPatients = new ArrayList<>(patients);
 
         overlayHandle = BackgroundOverlay.show(owner);
 
@@ -49,7 +72,7 @@ public class VisiteFormDialog extends JDialog {
         });
 
         setUndecorated(true);
-        setSize(410, 455);
+        setSize(430, 395);
         setResizable(false);
         setLocationRelativeTo(owner);
 
@@ -59,12 +82,11 @@ public class VisiteFormDialog extends JDialog {
 
         mainPanel.add(createHeaderPanel(), BorderLayout.NORTH);
 
-        fullNameField = createTextField(NAME_PLACEHOLDER, 40);
-        maleButton = createRadioButton("HOMME");
-        femaleButton = createRadioButton("FEMME");
-        doctorComboBox = createDoctorComboBox();
-        addressArea = createAddressArea();
-        dateField = createTextField(DATE_PLACEHOLDER, 40);
+        patientComboBox = createPatientComboBox(patients);
+        doctorComboBox = createDoctorComboBox(medecins);
+
+        dateSpinner = createDateSpinner();
+        timeSpinner = createTimeSpinner();
 
         mainPanel.add(createFormPanel(), BorderLayout.CENTER);
         mainPanel.add(createFooterPanel(), BorderLayout.SOUTH);
@@ -100,70 +122,50 @@ public class VisiteFormDialog extends JDialog {
     private JPanel createFormPanel() {
         JPanel formPanel = new JPanel();
         formPanel.setBackground(Color.WHITE);
-        formPanel.setBorder(new EmptyBorder(15, 18, 14, 18));
+        formPanel.setBorder(new EmptyBorder(18, 18, 18, 18));
         formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
 
         formPanel.add(createLabel("NOM COMPLET DU PATIENT"));
         formPanel.add(Box.createVerticalStrut(7));
-        formPanel.add(fullNameField);
+        formPanel.add(patientComboBox);
 
-        formPanel.add(Box.createVerticalStrut(14));
-        formPanel.add(createSexAndDoctorPanel());
-
-        formPanel.add(Box.createVerticalStrut(14));
-        formPanel.add(createLabel("ADRESSE"));
+        formPanel.add(Box.createVerticalStrut(15));
+        formPanel.add(createLabel("DOCTEUR RESPONSABLE"));
         formPanel.add(Box.createVerticalStrut(7));
-        formPanel.add(createAddressScrollPane());
+        formPanel.add(doctorComboBox);
 
-        formPanel.add(Box.createVerticalStrut(14));
-        formPanel.add(createLabel("DATE DU VISITE"));
-        formPanel.add(Box.createVerticalStrut(7));
-        formPanel.add(dateField);
+        formPanel.add(Box.createVerticalStrut(15));
+        formPanel.add(createDateAndTimePanel());
 
         return formPanel;
     }
 
-    private JPanel createSexAndDoctorPanel() {
+    private JPanel createDateAndTimePanel() {
         JPanel rowPanel = new JPanel(new GridLayout(1, 2, 18, 0));
         rowPanel.setBackground(Color.WHITE);
         rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        rowPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 58));
+        rowPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 62));
 
-        JPanel sexPanel = new JPanel();
-        sexPanel.setBackground(Color.WHITE);
-        sexPanel.setLayout(new BoxLayout(sexPanel, BoxLayout.Y_AXIS));
+        JPanel datePanel = new JPanel();
+        datePanel.setBackground(Color.WHITE);
+        datePanel.setLayout(new BoxLayout(datePanel, BoxLayout.Y_AXIS));
 
-        sexPanel.add(createLabel("SEXE"));
-        sexPanel.add(Box.createVerticalStrut(6));
-        sexPanel.add(createSexButtonsPanel());
+        datePanel.add(createLabel("DATE DE LA VISITE"));
+        datePanel.add(Box.createVerticalStrut(6));
+        datePanel.add(dateSpinner);
 
-        JPanel doctorPanel = new JPanel();
-        doctorPanel.setBackground(Color.WHITE);
-        doctorPanel.setLayout(new BoxLayout(doctorPanel, BoxLayout.Y_AXIS));
+        JPanel timePanel = new JPanel();
+        timePanel.setBackground(Color.WHITE);
+        timePanel.setLayout(new BoxLayout(timePanel, BoxLayout.Y_AXIS));
 
-        doctorPanel.add(createLabel("DOCTEUR RESPONSABLE"));
-        doctorPanel.add(Box.createVerticalStrut(6));
-        doctorPanel.add(doctorComboBox);
+        timePanel.add(createLabel("HEURE DE LA VISITE"));
+        timePanel.add(Box.createVerticalStrut(6));
+        timePanel.add(timeSpinner);
 
-        rowPanel.add(sexPanel);
-        rowPanel.add(doctorPanel);
+        rowPanel.add(datePanel);
+        rowPanel.add(timePanel);
 
         return rowPanel;
-    }
-
-    private JPanel createSexButtonsPanel() {
-        JPanel sexButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        sexButtonsPanel.setBackground(Color.WHITE);
-        sexButtonsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        ButtonGroup sexGroup = new ButtonGroup();
-        sexGroup.add(maleButton);
-        sexGroup.add(femaleButton);
-
-        sexButtonsPanel.add(maleButton);
-        sexButtonsPanel.add(femaleButton);
-
-        return sexButtonsPanel;
     }
 
     private JLabel createLabel(String text) {
@@ -175,115 +177,170 @@ public class VisiteFormDialog extends JDialog {
         return label;
     }
 
-    private JTextField createTextField(String placeholder, int height) {
-        JTextField field = new JTextField(placeholder);
+    private JComboBox<Patient> createPatientComboBox(
+            List<Patient> patients
+    ) {
+        JComboBox<Patient> comboBox = new JComboBox<>(
+                new DefaultComboBoxModel<>(
+                        patients.toArray(new Patient[0])
+                )
+        );
 
-        field.setFont(new Font("SansSerif", Font.PLAIN, 13));
-        field.setForeground(PLACEHOLDER_COLOR);
-        field.setBackground(INPUT_BACKGROUND);
-        field.setBorder(new EmptyBorder(0, 11, 0, 11));
-        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
-        field.setPreferredSize(new Dimension(0, height));
-        field.setAlignmentX(Component.LEFT_ALIGNMENT);
+        styleComboBox(comboBox);
 
-        field.addFocusListener(new FocusAdapter() {
+        comboBox.setEditable(true);
+        comboBox.setRenderer(new PatientComboBoxRenderer());
 
+        JTextField editor = (JTextField) comboBox
+                .getEditor()
+                .getEditorComponent();
+
+        editor.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        editor.setForeground(PLACEHOLDER_COLOR);
+        editor.setText("Rechercher un patient...");
+
+        editor.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
-            public void focusGained(FocusEvent event) {
-                if (field.getText().equals(placeholder)) {
-                    field.setText("");
-                    field.setForeground(TEXT_COLOR);
+            public void focusGained(java.awt.event.FocusEvent event) {
+                if (editor.getText().equals("Rechercher un patient...")) {
+                    editor.setText("");
+                    editor.setForeground(TEXT_COLOR);
                 }
             }
 
             @Override
-            public void focusLost(FocusEvent event) {
-                if (field.getText().trim().isEmpty()) {
-                    field.setText(placeholder);
-                    field.setForeground(PLACEHOLDER_COLOR);
+            public void focusLost(java.awt.event.FocusEvent event) {
+                if (editor.getText().trim().isEmpty()
+                        && comboBox.getSelectedItem() == null) {
+
+                    editor.setText("Rechercher un patient...");
+                    editor.setForeground(PLACEHOLDER_COLOR);
                 }
             }
         });
 
-        return field;
-    }
+        /*
+         * Chaque frappe filtre la liste selon le nom complet.
+         */
+        editor.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent event) {
+                if (filteringPatients) {
+                    return;
+                }
 
-    private JRadioButton createRadioButton(String text) {
-        JRadioButton radioButton = new JRadioButton(text);
+                int keyCode = event.getKeyCode();
 
-        radioButton.setFont(new Font("SansSerif", Font.BOLD, 9));
-        radioButton.setForeground(LABEL_COLOR);
-        radioButton.setBackground(Color.WHITE);
-        radioButton.setFocusPainted(false);
-        radioButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                if (keyCode == KeyEvent.VK_UP
+                        || keyCode == KeyEvent.VK_DOWN
+                        || keyCode == KeyEvent.VK_ENTER
+                        || keyCode == KeyEvent.VK_ESCAPE) {
+                    return;
+                }
 
-        return radioButton;
-    }
+                filterPatientComboBox(editor.getText());
+            }
+        });
 
-    private JComboBox<String> createDoctorComboBox() {
-        String[] doctors = {
-                "Sebastien Scapin",
-                "Dr. James Smith",
-                "Dr. Ana Martinez",
-                "Dr. Sarah Johnson"
-        };
+        comboBox.addActionListener(event -> {
+            if (filteringPatients) {
+                return;
+            }
 
-        JComboBox<String> comboBox = new JComboBox<>(doctors);
+            Object selectedItem = comboBox.getSelectedItem();
 
-        comboBox.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        comboBox.setForeground(TEXT_COLOR);
-        comboBox.setBackground(INPUT_BACKGROUND);
-        comboBox.setBorder(new LineBorder(INPUT_BACKGROUND, 1, true));
-        comboBox.setFocusable(false);
-        comboBox.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        comboBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        comboBox.setPreferredSize(new Dimension(0, 36));
-        comboBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+            if (selectedItem instanceof Patient) {
+                Patient selectedPatient = (Patient) selectedItem;
+
+                JTextField selectedEditor = (JTextField) comboBox
+                        .getEditor()
+                        .getEditorComponent();
+
+                selectedEditor.setText(getPatientFullName(selectedPatient));
+                selectedEditor.setForeground(TEXT_COLOR);
+            }
+        });
+
+        comboBox.setSelectedItem(null);
 
         return comboBox;
     }
 
-    private JScrollPane createAddressScrollPane() {
-        JScrollPane scrollPane = new JScrollPane(addressArea);
-        scrollPane.setBorder(new LineBorder(INPUT_BACKGROUND, 1, true));
-        scrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 67));
-        scrollPane.setPreferredSize(new Dimension(0, 67));
+    private JComboBox<Medecin> createDoctorComboBox(
+            List<Medecin> medecins
+    ) {
+        JComboBox<Medecin> comboBox = new JComboBox<>(
+                new DefaultComboBoxModel<>(
+                        medecins.toArray(new Medecin[0])
+                )
+        );
 
-        return scrollPane;
+        styleComboBox(comboBox);
+        comboBox.setRenderer(new MedecinComboBoxRenderer());
+
+        /*
+         * Oblige l'utilisateur à choisir explicitement un médecin.
+         */
+        comboBox.setSelectedItem(null);
+
+        return comboBox;
     }
 
-    private JTextArea createAddressArea() {
-        JTextArea textArea = new JTextArea(3, 20);
+    private void styleComboBox(JComboBox<?> comboBox) {
+        comboBox.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        comboBox.setForeground(TEXT_COLOR);
+        comboBox.setBackground(INPUT_BACKGROUND);
+        comboBox.setBorder(new LineBorder(INPUT_BACKGROUND, 1, true));
+        comboBox.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        comboBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        comboBox.setPreferredSize(new Dimension(0, 38));
+        comboBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+    }
 
-        textArea.setText(ADDRESS_PLACEHOLDER);
-        textArea.setFont(new Font("SansSerif", Font.PLAIN, 13));
-        textArea.setForeground(PLACEHOLDER_COLOR);
-        textArea.setBackground(INPUT_BACKGROUND);
-        textArea.setLineWrap(true);
-        textArea.setWrapStyleWord(true);
-        textArea.setBorder(new EmptyBorder(9, 11, 9, 11));
+    private JSpinner createDateSpinner() {
+        JSpinner spinner = new JSpinner(
+                new SpinnerDateModel(
+                        new Date(),
+                        null,
+                        null,
+                        Calendar.DAY_OF_MONTH
+                )
+        );
 
-        textArea.addFocusListener(new FocusAdapter() {
+        spinner.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        spinner.setBackground(INPUT_BACKGROUND);
+        spinner.setBorder(new LineBorder(INPUT_BACKGROUND, 1, true));
+        spinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        spinner.setPreferredSize(new Dimension(0, 36));
 
-            @Override
-            public void focusGained(FocusEvent event) {
-                if (textArea.getText().equals(ADDRESS_PLACEHOLDER)) {
-                    textArea.setText("");
-                    textArea.setForeground(TEXT_COLOR);
-                }
-            }
+        spinner.setEditor(
+                new JSpinner.DateEditor(spinner, "dd/MM/yyyy")
+        );
 
-            @Override
-            public void focusLost(FocusEvent event) {
-                if (textArea.getText().trim().isEmpty()) {
-                    textArea.setText(ADDRESS_PLACEHOLDER);
-                    textArea.setForeground(PLACEHOLDER_COLOR);
-                }
-            }
-        });
+        return spinner;
+    }
 
-        return textArea;
+    private JSpinner createTimeSpinner() {
+        JSpinner spinner = new JSpinner(
+                new SpinnerDateModel(
+                        new Date(),
+                        null,
+                        null,
+                        Calendar.MINUTE
+                )
+        );
+
+        spinner.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        spinner.setBackground(INPUT_BACKGROUND);
+        spinner.setBorder(new LineBorder(INPUT_BACKGROUND, 1, true));
+        spinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        spinner.setPreferredSize(new Dimension(0, 36));
+
+        spinner.setEditor(
+                new JSpinner.DateEditor(spinner, "HH:mm")
+        );
+
+        return spinner;
     }
 
     private JPanel createFooterPanel() {
@@ -318,27 +375,49 @@ public class VisiteFormDialog extends JDialog {
         return footerPanel;
     }
 
+    private void filterPatientComboBox(String keyword) {
+        filteringPatients = true;
+
+        List<Patient> filteredPatients = allPatients.stream()
+                .filter(patient -> getPatientFullName(patient)
+                        .toLowerCase()
+                        .contains(keyword.trim().toLowerCase()))
+                .toList();
+
+        patientComboBox.setModel(
+                new DefaultComboBoxModel<>(
+                        filteredPatients.toArray(new Patient[0])
+                )
+        );
+
+        patientComboBox.setSelectedItem(null);
+
+        JTextField editor = (JTextField) patientComboBox
+                .getEditor()
+                .getEditorComponent();
+
+        editor.setText(keyword);
+        editor.setForeground(TEXT_COLOR);
+
+        filteringPatients = false;
+
+        if (!filteredPatients.isEmpty() && patientComboBox.isShowing()) {
+            patientComboBox.setPopupVisible(true);
+        }
+    }
+
     private void saveVisit() {
-        if (getFullName().isBlank()) {
-            showRequiredMessage("Veuillez saisir le nom du patient.");
-            fullNameField.requestFocusInWindow();
+        if (getSelectedPatient() == null) {
+            showRequiredMessage(
+                    "Veuillez sélectionner un patient existant."
+            );
             return;
         }
 
-        if (getSexe() == null) {
-            showRequiredMessage("Veuillez sélectionner le sexe du patient.");
-            return;
-        }
-
-        if (getAddress().isBlank()) {
-            showRequiredMessage("Veuillez saisir l'adresse du patient.");
-            addressArea.requestFocusInWindow();
-            return;
-        }
-
-        if (getDateVisite().isBlank()) {
-            showRequiredMessage("Veuillez saisir la date de la visite.");
-            dateField.requestFocusInWindow();
+        if (getSelectedMedecin() == null) {
+            showRequiredMessage(
+                    "Veuillez sélectionner un médecin."
+            );
             return;
         }
 
@@ -359,35 +438,115 @@ public class VisiteFormDialog extends JDialog {
         return saved;
     }
 
-    public String getFullName() {
-        String name = fullNameField.getText().trim();
-        return name.equals(NAME_PLACEHOLDER) ? "" : name;
-    }
+    public Patient getSelectedPatient() {
+        Object selectedItem = patientComboBox.getSelectedItem();
 
-    public String getSexe() {
-        if (maleButton.isSelected()) {
-            return "HOMME";
-        }
-
-        if (femaleButton.isSelected()) {
-            return "FEMME";
+        if (selectedItem instanceof Patient) {
+            return (Patient) selectedItem;
         }
 
         return null;
     }
 
-    public String getDoctor() {
-        return doctorComboBox.getSelectedItem().toString();
+    public Medecin getSelectedMedecin() {
+        Object selectedItem = doctorComboBox.getSelectedItem();
+
+        if (selectedItem instanceof Medecin) {
+            return (Medecin) selectedItem;
+        }
+
+        return null;
     }
 
-    public String getAddress() {
-        String address = addressArea.getText().trim();
-        return address.equals(ADDRESS_PLACEHOLDER) ? "" : address;
+    public LocalDateTime getDateHeureVisite() {
+        Date selectedDate = (Date) dateSpinner.getValue();
+        Date selectedTime = (Date) timeSpinner.getValue();
+
+        LocalDate date = Instant.ofEpochMilli(selectedDate.getTime())
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate();
+
+        LocalTime time = Instant.ofEpochMilli(selectedTime.getTime())
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime()
+                .withSecond(0)
+                .withNano(0);
+
+        return LocalDateTime.of(date, time);
     }
 
-    public String getDateVisite() {
-        String date = dateField.getText().trim();
-        return date.equals(DATE_PLACEHOLDER) ? "" : date;
+    private String getPatientFullName(Patient patient) {
+        String nom = patient.getNom() == null ? "" : patient.getNom();
+
+        String prenom = patient.getPrenom() == null
+                ? ""
+                : patient.getPrenom();
+
+        return (nom + " " + prenom).trim();
+    }
+
+    private String getMedecinFullName(Medecin medecin) {
+        String nom = medecin.getNom() == null ? "" : medecin.getNom();
+
+        String prenom = medecin.getPrenom() == null
+                ? ""
+                : medecin.getPrenom();
+
+        return (nom + " " + prenom).trim();
+    }
+
+    private class PatientComboBoxRenderer
+            extends DefaultListCellRenderer {
+
+        @Override
+        public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+        ) {
+            super.getListCellRendererComponent(
+                    list,
+                    value,
+                    index,
+                    isSelected,
+                    cellHasFocus
+            );
+
+            if (value instanceof Patient) {
+                setText(getPatientFullName((Patient) value));
+            }
+
+            return this;
+        }
+    }
+
+    private class MedecinComboBoxRenderer
+            extends DefaultListCellRenderer {
+
+        @Override
+        public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus
+        ) {
+            super.getListCellRendererComponent(
+                    list,
+                    value,
+                    index,
+                    isSelected,
+                    cellHasFocus
+            );
+
+            if (value instanceof Medecin) {
+                setText(getMedecinFullName((Medecin) value));
+            }
+
+            return this;
+        }
     }
 
     private static class RoundedPanel extends JPanel {
