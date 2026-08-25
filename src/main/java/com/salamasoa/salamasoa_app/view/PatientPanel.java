@@ -87,9 +87,14 @@ public class PatientPanel extends JPanel {
             dialog.setVisible(true);
 
             /*
-             * À l’étape suivante, si dialog.isSaved() est vrai,
-             * nous créerons le Patient et l’enregistrerons dans MySQL.
+             * Si l'utilisateur a cliqué sur Annuler ou ×,
+             * aucun patient ne doit être créé.
              */
+            if (!dialog.isSaved()) {
+                return;
+            }
+
+            savePatientFromDialog(dialog);
         });
 
         headerPanel.add(titleLabel, BorderLayout.WEST);
@@ -98,6 +103,57 @@ public class PatientPanel extends JPanel {
         return headerPanel;
     }
 
+    private void savePatientFromDialog(PatientFormDialog dialog) {
+        new SwingWorker<Patient, Void>() {
+
+            @Override
+            protected Patient doInBackground() {
+                return patientService.createPatient(
+                        dialog.getFullName(),
+                        dialog.getSexe(),
+                        dialog.getAddress()
+                );
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Patient savedPatient = get();
+
+                    JOptionPane.showMessageDialog(
+                            PatientPanel.this,
+                            "Patient enregistré avec succès.\n\n"
+                                    + "Code patient : "
+                                    + savedPatient.getCodepat(),
+                            "Enregistrement réussi",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    /*
+                     * Recharge les données depuis MySQL afin que le
+                     * nouveau patient apparaisse immédiatement dans JTable.
+                     */
+                    loadPatients();
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    String message = exception.getCause() == null
+                            ? exception.getMessage()
+                            : exception.getCause().getMessage();
+
+                    JOptionPane.showMessageDialog(
+                            PatientPanel.this,
+                            "Impossible d'enregistrer le patient :\n"
+                                    + message,
+                            "Erreur d'enregistrement",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
+    }
     private JPanel createFiltersPanel() {
         JPanel filtersPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         filtersPanel.setBackground(Color.WHITE);
