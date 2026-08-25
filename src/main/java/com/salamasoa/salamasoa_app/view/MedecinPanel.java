@@ -16,6 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+
 public class MedecinPanel extends JPanel {
 
     private static final Color PRIMARY_COLOR = new Color(199, 0, 61);
@@ -225,6 +228,8 @@ public class MedecinPanel extends JPanel {
         medecinTable.getColumnModel().getColumn(4)
                 .setCellRenderer(new ActionCellRenderer());
 
+        configureActionMenu();
+
         JTableHeader tableHeader = medecinTable.getTableHeader();
         tableHeader.setFont(new Font("SansSerif", Font.BOLD, 9));
         tableHeader.setForeground(new Color(100, 100, 105));
@@ -325,6 +330,187 @@ public class MedecinPanel extends JPanel {
                 + "</span></html>";
     }
 
+    private void configureActionMenu() {
+        medecinTable.addMouseListener(new MouseAdapter() {
+
+            @Override
+            public void mouseClicked(MouseEvent event) {
+                int row = medecinTable.rowAtPoint(event.getPoint());
+                int column = medecinTable.columnAtPoint(event.getPoint());
+
+                /*
+                 * Colonnes :
+                 * NOM, ID, GRADE, STATUT, ACTION
+                 */
+                if (row < 0 || column != 4) {
+                    return;
+                }
+
+                medecinTable.setRowSelectionInterval(row, row);
+
+                String codemed = tableModel.getValueAt(row, 1).toString();
+                String status = tableModel.getValueAt(row, 3).toString();
+
+                showMedecinActionsMenu(codemed, status, event);
+            }
+        });
+    }
+
+    private void showMedecinActionsMenu(
+            String codemed,
+            String status,
+            MouseEvent event
+    ) {
+        JPopupMenu popupMenu = new JPopupMenu();
+
+        JMenuItem editItem = new JMenuItem("Modifier");
+
+        JMenuItem toggleStatusItem = new JMenuItem(
+                status.equals("Actif") ? "Désactiver" : "Activer"
+        );
+
+        JMenuItem deleteItem = new JMenuItem("Supprimer");
+
+        editItem.addActionListener(actionEvent ->
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Le formulaire de modification du médecin "
+                                + "sera créé à la prochaine étape.",
+                        "Modifier le médecin",
+                        JOptionPane.INFORMATION_MESSAGE
+                )
+        );
+
+        toggleStatusItem.addActionListener(actionEvent ->
+                toggleMedecinStatus(codemed)
+        );
+
+        deleteItem.addActionListener(actionEvent ->
+                confirmAndDeleteMedecin(codemed)
+        );
+
+        popupMenu.add(editItem);
+        popupMenu.addSeparator();
+        popupMenu.add(toggleStatusItem);
+        popupMenu.add(deleteItem);
+
+        popupMenu.show(
+                medecinTable,
+                event.getX(),
+                event.getY()
+        );
+    }
+
+    private void toggleMedecinStatus(String codemed) {
+        new SwingWorker<Medecin, Void>() {
+
+            @Override
+            protected Medecin doInBackground() {
+                return medecinService.toggleMedecinStatus(codemed);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Medecin medecin = get();
+
+                    String newStatus = medecin.isActif()
+                            ? "actif"
+                            : "inactif";
+
+                    JOptionPane.showMessageDialog(
+                            MedecinPanel.this,
+                            "Le médecin " + medecin.getCodemed()
+                                    + " est maintenant " + newStatus + ".",
+                            "Statut mis à jour",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    loadMedecins();
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    showMedecinActionError(
+                            "Impossible de modifier le statut du médecin.",
+                            exception
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    private void confirmAndDeleteMedecin(String codemed) {
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Voulez-vous vraiment supprimer le médecin : "
+                        + codemed + " ?\n\n"
+                        + "Cette action est définitive.",
+                "Confirmation de suppression",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        deleteMedecin(codemed);
+    }
+
+    private void deleteMedecin(String codemed) {
+        new SwingWorker<Void, Void>() {
+
+            @Override
+            protected Void doInBackground() {
+                medecinService.deleteMedecin(codemed);
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();
+
+                    JOptionPane.showMessageDialog(
+                            MedecinPanel.this,
+                            "Le médecin " + codemed
+                                    + " a été supprimé avec succès.",
+                            "Suppression réussie",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    loadMedecins();
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    showMedecinActionError(
+                            "Impossible de supprimer le médecin.",
+                            exception
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    private void showMedecinActionError(
+            String title,
+            ExecutionException exception
+    ) {
+        String message = exception.getCause() == null
+                ? exception.getMessage()
+                : exception.getCause().getMessage();
+
+        JOptionPane.showMessageDialog(
+                this,
+                title + "\n\n" + message,
+                "Erreur",
+                JOptionPane.ERROR_MESSAGE
+        );
+    }
     private class MedecinCellRenderer extends DefaultTableCellRenderer {
 
         @Override
