@@ -59,14 +59,12 @@ public class PatientPanel extends JPanel {
         newPatientButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         newPatientButton.setBorder(new EmptyBorder(10, 16, 10, 16));
 
-        newPatientButton.addActionListener(event ->
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Le formulaire d'ajout de patient sera créé dans une prochaine étape.",
-                        "Nouveau patient",
-                        JOptionPane.INFORMATION_MESSAGE
-                )
-        );
+        newPatientButton.addActionListener(event -> {
+            Window window = SwingUtilities.getWindowAncestor(this);
+
+            PatientFormDialog dialog = new PatientFormDialog(window);
+            dialog.setVisible(true);
+        });
 
         headerPanel.add(titleLabel, BorderLayout.WEST);
         headerPanel.add(newPatientButton, BorderLayout.EAST);
