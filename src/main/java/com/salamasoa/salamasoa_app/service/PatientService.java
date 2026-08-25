@@ -36,6 +36,23 @@ public class PatientService {
         patientRepository.deleteById(codepat);
     }
 
+    /**
+     * Inverse le statut actif/inactif d'un patient.
+     *
+     * Actif   → Inactif
+     * Inactif → Actif
+     */
+    public Patient togglePatientStatus(String codepat) {
+        Patient patient = patientRepository.findById(codepat)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Patient introuvable : " + codepat
+                ));
+
+        patient.setActif(!patient.isActif());
+
+        return patientRepository.save(patient);
+    }
+
     public List<Patient> searchPatients(String keyword) {
         return patientRepository
                 .findByNomContainingIgnoreCaseOrPrenomContainingIgnoreCase(
