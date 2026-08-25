@@ -3,19 +3,29 @@ package com.salamasoa.salamasoa_app.view;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.function.Consumer;
 
 public class SidebarPanel extends JPanel {
 
-    // Couleurs principales de l'application
     private static final Color SIDEBAR_COLOR = new Color(250, 247, 248);
     private static final Color PRIMARY_COLOR = new Color(199, 0, 61);
     private static final Color ACTIVE_COLOR = new Color(250, 221, 230);
     private static final Color TEXT_COLOR = new Color(70, 70, 70);
 
-    // Le bouton actuellement sélectionné
+    /*
+     * Cette variable contient l'action à effectuer lorsqu'un bouton
+     * de navigation est cliqué.
+     *
+     * Exemple :
+     * navigationHandler.accept(MainFrame.PAGE_PATIENTS);
+     */
+    private final Consumer<String> navigationHandler;
+
     private JButton activeButton;
 
-    public SidebarPanel() {
+    public SidebarPanel(Consumer<String> navigationHandler) {
+        this.navigationHandler = navigationHandler;
+
         setPreferredSize(new Dimension(235, 0));
         setBackground(SIDEBAR_COLOR);
         setBorder(new EmptyBorder(20, 14, 18, 14));
@@ -54,10 +64,25 @@ public class SidebarPanel extends JPanel {
         navigationPanel.setBackground(SIDEBAR_COLOR);
         navigationPanel.setLayout(new BoxLayout(navigationPanel, BoxLayout.Y_AXIS));
 
-        JButton dashboardButton = createNavigationButton("▦   Tableau de bord");
-        JButton todayVisitButton = createNavigationButton("□   Visite du jour");
-        JButton patientsButton = createNavigationButton("♟   Patients");
-        JButton doctorsButton = createNavigationButton("□   Médecin");
+        JButton dashboardButton = createNavigationButton(
+                "▦   Tableau de bord",
+                MainFrame.PAGE_DASHBOARD
+        );
+
+        JButton todayVisitButton = createNavigationButton(
+                "□   Visite du jour",
+                MainFrame.PAGE_VISITES
+        );
+
+        JButton patientsButton = createNavigationButton(
+                "♟   Patients",
+                MainFrame.PAGE_PATIENTS
+        );
+
+        JButton doctorsButton = createNavigationButton(
+                "□   Médecin",
+                MainFrame.PAGE_MEDECINS
+        );
 
         navigationPanel.add(dashboardButton);
         navigationPanel.add(Box.createVerticalStrut(6));
@@ -70,7 +95,7 @@ public class SidebarPanel extends JPanel {
 
         navigationPanel.add(doctorsButton);
 
-        // Dans le design actuel, « Patients » est la page sélectionnée.
+        // Patients est la page affichée au démarrage.
         setActiveButton(patientsButton);
 
         return navigationPanel;
@@ -96,12 +121,25 @@ public class SidebarPanel extends JPanel {
         logoutButton.setHorizontalAlignment(SwingConstants.LEFT);
         logoutButton.setBorder(new EmptyBorder(16, 8, 5, 8));
 
+        /*
+         * Plus tard, ce bouton servira à fermer la session
+         * et revenir à une page de connexion.
+         */
+        logoutButton.addActionListener(event ->
+                JOptionPane.showMessageDialog(
+                        this,
+                        "La fonctionnalité de déconnexion sera ajoutée plus tard.",
+                        "Déconnexion",
+                        JOptionPane.INFORMATION_MESSAGE
+                )
+        );
+
         bottomPanel.add(logoutButton, BorderLayout.CENTER);
 
         return bottomPanel;
     }
 
-    private JButton createNavigationButton(String text) {
+    private JButton createNavigationButton(String text, String pageName) {
         JButton button = new JButton(text);
 
         button.setFont(new Font("SansSerif", Font.PLAIN, 12));
@@ -116,25 +154,27 @@ public class SidebarPanel extends JPanel {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setBorder(new EmptyBorder(11, 10, 11, 10));
 
-        // Le bouton prend toute la largeur du menu.
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
         button.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        // Pour le moment, le clic change uniquement le bouton actif.
-        button.addActionListener(event -> setActiveButton(button));
+        button.addActionListener(event -> {
+            // 1. Mettre le bouton cliqué en rose.
+            setActiveButton(button);
+
+            // 2. Afficher la page correspondante dans MainFrame.
+            navigationHandler.accept(pageName);
+        });
 
         return button;
     }
 
     private void setActiveButton(JButton selectedButton) {
-        // Réinitialise le style de l'ancien bouton actif.
         if (activeButton != null) {
             activeButton.setBackground(SIDEBAR_COLOR);
             activeButton.setForeground(TEXT_COLOR);
             activeButton.setContentAreaFilled(false);
         }
 
-        // Applique le style rose au nouveau bouton sélectionné.
         selectedButton.setBackground(ACTIVE_COLOR);
         selectedButton.setForeground(PRIMARY_COLOR);
         selectedButton.setContentAreaFilled(true);
