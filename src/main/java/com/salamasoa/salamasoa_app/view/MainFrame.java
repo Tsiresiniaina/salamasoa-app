@@ -1,5 +1,6 @@
 package com.salamasoa.salamasoa_app.view;
 
+import com.salamasoa.salamasoa_app.service.PatientService;
 import org.springframework.stereotype.Component;
 
 import javax.swing.*;
@@ -17,7 +18,12 @@ public class MainFrame extends JFrame {
     private final CardLayout cardLayout;
     private final JPanel pagesPanel;
 
-    public MainFrame() {
+    //SERVICES
+    private final PatientService patientService;
+
+    public MainFrame(PatientService _patientService) {
+
+        this.patientService = _patientService;
         setTitle("SalamaSoa - Centre médical");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1250, 760);
