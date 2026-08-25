@@ -1,4 +1,4 @@
-package com.salamasoa.salamasoa_app.view;
+package com.salamasoa.salamasoa_app.view.Form;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -6,6 +6,10 @@ import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import com.salamasoa.salamasoa_app.view.GlassPane.BackgroundOverlay;
 
 public class PatientFormDialog extends JDialog {
 
@@ -25,10 +29,20 @@ public class PatientFormDialog extends JDialog {
     private final JTextArea addressArea;
 
     private boolean saved = false;
-
+    private final BackgroundOverlay.OverlayHandle overlayHandle;
     public PatientFormDialog(Window owner) {
         super(owner, "Nouveau Patient", ModalityType.APPLICATION_MODAL);
+        //BACKGROUND OVERLAY
+        overlayHandle = BackgroundOverlay.show(owner);
 
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent event) {
+                if (overlayHandle != null) {
+                    overlayHandle.close();
+                }
+            }
+        });
         setUndecorated(true);
         setSize(410, 390);
         setResizable(false);

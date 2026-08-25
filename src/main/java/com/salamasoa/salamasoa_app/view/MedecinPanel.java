@@ -58,14 +58,12 @@ public class MedecinPanel extends JPanel {
         newDoctorButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         newDoctorButton.setBorder(new EmptyBorder(10, 16, 10, 16));
 
-        newDoctorButton.addActionListener(event ->
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Le formulaire d'ajout de médecin sera créé prochainement.",
-                        "Nouveau médecin",
-                        JOptionPane.INFORMATION_MESSAGE
-                )
-        );
+        newDoctorButton.addActionListener(event -> {
+            Window window = SwingUtilities.getWindowAncestor(this);
+
+            MedecinFormDialog dialog = new MedecinFormDialog(window);
+            dialog.setVisible(true);
+        });
 
         headerPanel.add(titleLabel, BorderLayout.WEST);
         headerPanel.add(newDoctorButton, BorderLayout.EAST);

@@ -1,4 +1,4 @@
-package com.salamasoa.salamasoa_app.view;
+package com.salamasoa.salamasoa_app.view.Form;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
