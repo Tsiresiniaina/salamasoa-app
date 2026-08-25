@@ -1,5 +1,7 @@
 package com.salamasoa.salamasoa_app.view;
 
+import com.salamasoa.salamasoa_app.model.Medecin;
+import com.salamasoa.salamasoa_app.service.MedecinService;
 import com.salamasoa.salamasoa_app.view.Form.MedecinFormDialog;
 
 import javax.swing.*;
@@ -8,7 +10,11 @@ import javax.swing.border.LineBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellRenderer;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class MedecinPanel extends JPanel {
 
@@ -18,16 +24,25 @@ public class MedecinPanel extends JPanel {
     private static final Color SECONDARY_TEXT_COLOR = new Color(120, 120, 125);
     private static final Color BORDER_COLOR = new Color(238, 238, 240);
 
+    private final MedecinService medecinService;
+
     private JTable medecinTable;
     private DefaultTableModel tableModel;
+    private JComboBox<String> gradeComboBox;
 
-    public MedecinPanel() {
+    private List<Medecin> allMedecins = new ArrayList<>();
+
+    public MedecinPanel(MedecinService medecinService) {
+        this.medecinService = medecinService;
+
         setBackground(Color.WHITE);
         setBorder(new EmptyBorder(26, 28, 28, 28));
         setLayout(new BorderLayout(0, 18));
 
         add(createTopSection(), BorderLayout.NORTH);
         add(createTableSection(), BorderLayout.CENTER);
+
+        loadMedecins();
     }
 
     private JPanel createTopSection() {
@@ -65,12 +80,65 @@ public class MedecinPanel extends JPanel {
 
             MedecinFormDialog dialog = new MedecinFormDialog(window);
             dialog.setVisible(true);
+
+            if (!dialog.isSaved()) {
+                return;
+            }
+
+            saveMedecinFromDialog(dialog);
         });
 
         headerPanel.add(titleLabel, BorderLayout.WEST);
         headerPanel.add(newDoctorButton, BorderLayout.EAST);
 
         return headerPanel;
+    }
+
+    private void saveMedecinFromDialog(MedecinFormDialog dialog) {
+        new SwingWorker<Medecin, Void>() {
+
+            @Override
+            protected Medecin doInBackground() {
+                return medecinService.createMedecin(
+                        dialog.getFullName(),
+                        dialog.getGrade()
+                );
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Medecin savedMedecin = get();
+
+                    JOptionPane.showMessageDialog(
+                            MedecinPanel.this,
+                            "Médecin enregistré avec succès.\n\n"
+                                    + "Code médecin : "
+                                    + savedMedecin.getCodemed(),
+                            "Enregistrement réussi",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    loadMedecins();
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    String message = exception.getCause() == null
+                            ? exception.getMessage()
+                            : exception.getCause().getMessage();
+
+                    JOptionPane.showMessageDialog(
+                            MedecinPanel.this,
+                            "Impossible d'enregistrer le médecin :\n"
+                                    + message,
+                            "Erreur d'enregistrement",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
     }
 
     private JPanel createFilterPanel() {
@@ -84,15 +152,19 @@ public class MedecinPanel extends JPanel {
 
         String[] grades = {
                 "Tous les grades",
+                "Médecin chef",
                 "Médecin généraliste",
                 "Cardiologue",
                 "Pédiatre",
-                "Chirurgien",
-                "Infirmier / Infirmière"
+                "Chirurgien"
         };
 
-        JComboBox<String> gradeComboBox = new JComboBox<>(grades);
+        gradeComboBox = new JComboBox<>(grades);
         styleComboBox(gradeComboBox);
+
+        gradeComboBox.addActionListener(event ->
+                displayMedecins(allMedecins)
+        );
 
         filterPanel.add(gradeLabel);
         filterPanel.add(gradeComboBox);
@@ -104,7 +176,7 @@ public class MedecinPanel extends JPanel {
         comboBox.setFont(new Font("SansSerif", Font.PLAIN, 10));
         comboBox.setForeground(TEXT_COLOR);
         comboBox.setBackground(Color.WHITE);
-        comboBox.setPreferredSize(new Dimension(160, 28));
+        comboBox.setPreferredSize(new Dimension(170, 28));
         comboBox.setBorder(new LineBorder(BORDER_COLOR, 1, true));
         comboBox.setCursor(new Cursor(Cursor.HAND_CURSOR));
         comboBox.setFocusable(false);
@@ -115,41 +187,12 @@ public class MedecinPanel extends JPanel {
                 "NOM DU MÉDECIN",
                 "ID",
                 "GRADE",
+                "STATUT",
                 "ACTION"
         };
 
-        Object[][] medecinData = {
-                {
-                        "<html><b>Dr. James Smith</b>"
-                                + "<br><span style='font-size:9px; color:#777777;'>Médecine générale</span></html>",
-                        "#MD-1001",
-                        "Médecin généraliste",
-                        "⋮"
-                },
-                {
-                        "<html><b>Dr. Ana Martinez</b>"
-                                + "<br><span style='font-size:9px; color:#777777;'>Cardiologie</span></html>",
-                        "#MD-1002",
-                        "Cardiologue",
-                        "⋮"
-                },
-                {
-                        "<html><b>Dr. Sarah Johnson</b>"
-                                + "<br><span style='font-size:9px; color:#777777;'>Pédiatrie</span></html>",
-                        "#MD-1003",
-                        "Pédiatre",
-                        "⋮"
-                },
-                {
-                        "<html><b>Dr. Patrick Brown</b>"
-                                + "<br><span style='font-size:9px; color:#777777;'>Chirurgie</span></html>",
-                        "#MD-1004",
-                        "Chirurgien",
-                        "⋮"
-                }
-        };
+        tableModel = new DefaultTableModel(columnNames, 0) {
 
-        tableModel = new DefaultTableModel(medecinData, columnNames) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -168,16 +211,18 @@ public class MedecinPanel extends JPanel {
         medecinTable.setRowSelectionAllowed(true);
         medecinTable.setColumnSelectionAllowed(false);
 
-        // Première ligne sélectionnée au démarrage.
-        medecinTable.setRowSelectionInterval(0, 0);
-
-        medecinTable.getColumnModel().getColumn(0).setPreferredWidth(260);
-        medecinTable.getColumnModel().getColumn(1).setPreferredWidth(130);
-        medecinTable.getColumnModel().getColumn(2).setPreferredWidth(220);
-        medecinTable.getColumnModel().getColumn(3).setPreferredWidth(90);
+        medecinTable.getColumnModel().getColumn(0).setPreferredWidth(240);
+        medecinTable.getColumnModel().getColumn(1).setPreferredWidth(120);
+        medecinTable.getColumnModel().getColumn(2).setPreferredWidth(190);
+        medecinTable.getColumnModel().getColumn(3).setPreferredWidth(120);
+        medecinTable.getColumnModel().getColumn(4).setPreferredWidth(80);
 
         medecinTable.setDefaultRenderer(Object.class, new MedecinCellRenderer());
+
         medecinTable.getColumnModel().getColumn(3)
+                .setCellRenderer(new StatusCellRenderer());
+
+        medecinTable.getColumnModel().getColumn(4)
                 .setCellRenderer(new ActionCellRenderer());
 
         JTableHeader tableHeader = medecinTable.getTableHeader();
@@ -193,6 +238,91 @@ public class MedecinPanel extends JPanel {
         scrollPane.setBackground(Color.WHITE);
 
         return scrollPane;
+    }
+
+    /**
+     * Charge les médecins MySQL en arrière-plan.
+     */
+    public void loadMedecins() {
+        new SwingWorker<List<Medecin>, Void>() {
+
+            @Override
+            protected List<Medecin> doInBackground() {
+                return medecinService.getAllMedecins();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    allMedecins = get();
+                    displayMedecins(allMedecins);
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    String message = exception.getCause() == null
+                            ? exception.getMessage()
+                            : exception.getCause().getMessage();
+
+                    JOptionPane.showMessageDialog(
+                            MedecinPanel.this,
+                            "Impossible de charger les médecins :\n"
+                                    + message,
+                            "Erreur MySQL",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * Affiche les médecins selon le grade sélectionné.
+     */
+    private void displayMedecins(List<Medecin> medecins) {
+        tableModel.setRowCount(0);
+
+        String selectedGrade =
+                gradeComboBox.getSelectedItem().toString();
+
+        for (Medecin medecin : medecins) {
+            boolean mustBeDisplayed =
+                    selectedGrade.equals("Tous les grades")
+                            || medecin.getGrade()
+                            .equalsIgnoreCase(selectedGrade);
+
+            if (!mustBeDisplayed) {
+                continue;
+            }
+
+            tableModel.addRow(new Object[]{
+                    formatMedecinName(medecin),
+                    medecin.getCodemed(),
+                    medecin.getGrade(),
+                    medecin.isActif() ? "Actif" : "Inactif",
+                    "⋮"
+            });
+        }
+
+        if (tableModel.getRowCount() > 0) {
+            medecinTable.setRowSelectionInterval(0, 0);
+        }
+    }
+
+    private String formatMedecinName(Medecin medecin) {
+        String nom = medecin.getNom() == null ? "" : medecin.getNom();
+        String prenom = medecin.getPrenom() == null
+                ? ""
+                : medecin.getPrenom();
+
+        String fullName = (nom + " " + prenom).trim();
+
+        return "<html><b>"
+                + fullName
+                + "</b><br><span style='font-size:9px; color:#777777;'>"
+                + medecin.getGrade()
+                + "</span></html>";
     }
 
     private class MedecinCellRenderer extends DefaultTableCellRenderer {
@@ -227,6 +357,49 @@ public class MedecinPanel extends JPanel {
             }
 
             return this;
+        }
+    }
+
+    private class StatusCellRenderer implements TableCellRenderer {
+
+        private final JPanel panel;
+        private final JLabel statusLabel;
+
+        public StatusCellRenderer() {
+            panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            panel.setBackground(Color.WHITE);
+
+            statusLabel = new JLabel();
+            statusLabel.setFont(new Font("SansSerif", Font.BOLD, 9));
+            statusLabel.setOpaque(true);
+            statusLabel.setBorder(new EmptyBorder(4, 7, 4, 7));
+
+            panel.add(statusLabel);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column
+        ) {
+            String status = value == null ? "" : value.toString();
+
+            panel.setBackground(isSelected ? ACTIVE_ROW_COLOR : Color.WHITE);
+            statusLabel.setText(status);
+
+            if (status.equals("Actif")) {
+                statusLabel.setForeground(new Color(0, 135, 120));
+                statusLabel.setBackground(new Color(218, 247, 241));
+            } else {
+                statusLabel.setForeground(new Color(135, 100, 100));
+                statusLabel.setBackground(new Color(245, 235, 235));
+            }
+
+            return panel;
         }
     }
 
