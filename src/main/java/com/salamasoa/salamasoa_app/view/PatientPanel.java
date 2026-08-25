@@ -1,5 +1,7 @@
 package com.salamasoa.salamasoa_app.view;
 
+import com.salamasoa.salamasoa_app.model.Patient;
+import com.salamasoa.salamasoa_app.service.PatientService;
 import com.salamasoa.salamasoa_app.view.Form.PatientFormDialog;
 
 import javax.swing.*;
@@ -10,6 +12,9 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class PatientPanel extends JPanel {
 
@@ -19,16 +24,30 @@ public class PatientPanel extends JPanel {
     private static final Color SECONDARY_TEXT_COLOR = new Color(120, 120, 125);
     private static final Color BORDER_COLOR = new Color(238, 238, 240);
 
+    private final PatientService patientService;
+
     private JTable patientTable;
     private DefaultTableModel tableModel;
+    private JComboBox<String> statusComboBox;
 
-    public PatientPanel() {
+    /*
+     * Cette liste contient les patients réellement récupérés depuis MySQL.
+     * Elle est utilisée pour appliquer le filtre Actif / Inactif.
+     */
+    private List<Patient> allPatients = new ArrayList<>();
+
+    public PatientPanel(PatientService patientService) {
+        this.patientService = patientService;
+
         setBackground(Color.WHITE);
         setBorder(new EmptyBorder(26, 28, 28, 28));
         setLayout(new BorderLayout(0, 18));
 
         add(createTopSection(), BorderLayout.NORTH);
         add(createTableSection(), BorderLayout.CENTER);
+
+        // Charge les patients MySQL sans bloquer l'interface Swing.
+        loadPatients();
     }
 
     private JPanel createTopSection() {
@@ -66,6 +85,11 @@ public class PatientPanel extends JPanel {
 
             PatientFormDialog dialog = new PatientFormDialog(window);
             dialog.setVisible(true);
+
+            /*
+             * À l’étape suivante, si dialog.isSaved() est vrai,
+             * nous créerons le Patient et l’enregistrerons dans MySQL.
+             */
         });
 
         headerPanel.add(titleLabel, BorderLayout.WEST);
@@ -81,24 +105,21 @@ public class PatientPanel extends JPanel {
 
         String[] statuses = {
                 "Tous les statuts",
-                "Active",
-                "Discharged"
+                "Actif",
+                "Inactif"
         };
 
-        String[] doctors = {
-                "Tous les docteurs",
-                "Dr. J. Smith",
-                "Dr. A. Martinez"
-        };
-
-        JComboBox<String> statusComboBox = new JComboBox<>(statuses);
-        JComboBox<String> doctorComboBox = new JComboBox<>(doctors);
-
+        statusComboBox = new JComboBox<>(statuses);
         styleComboBox(statusComboBox);
-        styleComboBox(doctorComboBox);
+
+        /*
+         * Ce filtre travaille sur les patients déjà chargés dans allPatients.
+         */
+        statusComboBox.addActionListener(event ->
+                displayPatients(allPatients)
+        );
 
         filtersPanel.add(statusComboBox);
-        filtersPanel.add(doctorComboBox);
 
         return filtersPanel;
     }
@@ -107,7 +128,7 @@ public class PatientPanel extends JPanel {
         comboBox.setFont(new Font("SansSerif", Font.PLAIN, 10));
         comboBox.setForeground(TEXT_COLOR);
         comboBox.setBackground(Color.WHITE);
-        comboBox.setPreferredSize(new Dimension(118, 28));
+        comboBox.setPreferredSize(new Dimension(130, 28));
         comboBox.setBorder(new LineBorder(BORDER_COLOR, 1, true));
         comboBox.setCursor(new Cursor(Cursor.HAND_CURSOR));
         comboBox.setFocusable(false);
@@ -117,35 +138,13 @@ public class PatientPanel extends JPanel {
         String[] columnNames = {
                 "NOM DU PATIENT",
                 "ID",
-                "DOCTEUR RESPONSABLE",
+                "SEXE",
+                "STATUT",
                 "ACTION"
         };
 
-        Object[][] patientData = {
-                {
-                        "<html><b>Eleanor<br>Vance</b>"
-                                + "<br><span style='font-size:9px; color:#777777;'>F, 68 yrs</span></html>",
-                        "#PT-<br>8492",
-                        "Dr. J. Smith",
-                        "⋮"
-                },
-                {
-                        "<html><b>Marcus<br>Lin</b>"
-                                + "<br><span style='font-size:9px; color:#777777;'>M, 42 yrs</span></html>",
-                        "#PT-7731",
-                        "Dr. A. Martinez",
-                        "Discharged"
-                },
-                {
-                        "<html><b>David<br>Osei</b>"
-                                + "<br><span style='font-size:9px; color:#777777;'>M, 29 yrs</span></html>",
-                        "#PT-<br>9012",
-                        "Dr. J. Smith",
-                        "Active"
-                }
-        };
+        tableModel = new DefaultTableModel(columnNames, 0) {
 
-        tableModel = new DefaultTableModel(patientData, columnNames) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -164,16 +163,18 @@ public class PatientPanel extends JPanel {
         patientTable.setRowSelectionAllowed(true);
         patientTable.setColumnSelectionAllowed(false);
 
-        // Première ligne sélectionnée, comme sur la maquette Figma.
-        patientTable.setRowSelectionInterval(0, 0);
-
-        patientTable.getColumnModel().getColumn(0).setPreferredWidth(210);
-        patientTable.getColumnModel().getColumn(1).setPreferredWidth(105);
-        patientTable.getColumnModel().getColumn(2).setPreferredWidth(160);
-        patientTable.getColumnModel().getColumn(3).setPreferredWidth(95);
+        patientTable.getColumnModel().getColumn(0).setPreferredWidth(250);
+        patientTable.getColumnModel().getColumn(1).setPreferredWidth(140);
+        patientTable.getColumnModel().getColumn(2).setPreferredWidth(110);
+        patientTable.getColumnModel().getColumn(3).setPreferredWidth(130);
+        patientTable.getColumnModel().getColumn(4).setPreferredWidth(80);
 
         patientTable.setDefaultRenderer(Object.class, new PatientCellRenderer());
+
         patientTable.getColumnModel().getColumn(3)
+                .setCellRenderer(new StatusCellRenderer());
+
+        patientTable.getColumnModel().getColumn(4)
                 .setCellRenderer(new ActionCellRenderer());
 
         JTableHeader tableHeader = patientTable.getTableHeader();
@@ -189,6 +190,102 @@ public class PatientPanel extends JPanel {
         scrollPane.setBackground(Color.WHITE);
 
         return scrollPane;
+    }
+
+    /**
+     * Récupère tous les patients en arrière-plan.
+     * MySQL ne bloque donc pas le thread graphique Swing.
+     */
+    public void loadPatients() {
+        new SwingWorker<List<Patient>, Void>() {
+
+            @Override
+            protected List<Patient> doInBackground() {
+                return patientService.getAllPatients();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    allPatients = get();
+                    displayPatients(allPatients);
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    JOptionPane.showMessageDialog(
+                            PatientPanel.this,
+                            "Impossible de charger les patients : "
+                                    + exception.getCause().getMessage(),
+                            "Erreur MySQL",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * Met à jour les lignes du JTable selon le filtre choisi.
+     */
+    private void displayPatients(List<Patient> patients) {
+        tableModel.setRowCount(0);
+
+        String selectedStatus =
+                statusComboBox.getSelectedItem().toString();
+
+        for (Patient patient : patients) {
+
+            boolean mustBeDisplayed =
+                    selectedStatus.equals("Tous les statuts")
+                            || (selectedStatus.equals("Actif")
+                            && patient.isActif())
+                            || (selectedStatus.equals("Inactif")
+                            && !patient.isActif());
+
+            if (!mustBeDisplayed) {
+                continue;
+            }
+
+            tableModel.addRow(new Object[]{
+                    formatPatientName(patient),
+                    patient.getCodepat(),
+                    formatSexe(patient.getSexe()),
+                    patient.isActif() ? "Actif" : "Inactif",
+                    "⋮"
+            });
+        }
+
+        // Sélectionne visuellement la première ligne si elle existe.
+        if (tableModel.getRowCount() > 0) {
+            patientTable.setRowSelectionInterval(0, 0);
+        }
+    }
+
+    private String formatPatientName(Patient patient) {
+        String nom = patient.getNom() == null ? "" : patient.getNom();
+        String prenom = patient.getPrenom() == null ? "" : patient.getPrenom();
+
+        String fullName = (nom + " " + prenom).trim();
+
+        return "<html><b>"
+                + fullName
+                + "</b><br><span style='font-size:9px; color:#777777;'>"
+                + patient.getAdresse()
+                + "</span></html>";
+    }
+
+    private String formatSexe(char sexe) {
+        if (sexe == 'H' || sexe == 'h') {
+            return "Homme";
+        }
+
+        if (sexe == 'F' || sexe == 'f') {
+            return "Femme";
+        }
+
+        return "Non renseigné";
     }
 
     private class PatientCellRenderer extends DefaultTableCellRenderer {
@@ -226,18 +323,21 @@ public class PatientPanel extends JPanel {
         }
     }
 
-    private class ActionCellRenderer implements TableCellRenderer {
+    private class StatusCellRenderer implements TableCellRenderer {
 
         private final JPanel panel;
-        private final JLabel actionLabel;
+        private final JLabel statusLabel;
 
-        public ActionCellRenderer() {
-            panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-            actionLabel = new JLabel();
-            actionLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
-            actionLabel.setForeground(new Color(115, 115, 120));
+        public StatusCellRenderer() {
+            panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            panel.setBackground(Color.WHITE);
 
-            panel.add(actionLabel);
+            statusLabel = new JLabel();
+            statusLabel.setFont(new Font("SansSerif", Font.BOLD, 9));
+            statusLabel.setOpaque(true);
+            statusLabel.setBorder(new EmptyBorder(4, 7, 4, 7));
+
+            panel.add(statusLabel);
         }
 
         @Override
@@ -249,28 +349,46 @@ public class PatientPanel extends JPanel {
                 int row,
                 int column
         ) {
+            String status = value == null ? "" : value.toString();
+
             panel.setBackground(isSelected ? ACTIVE_ROW_COLOR : Color.WHITE);
+            statusLabel.setText(status);
 
-            String action = value == null ? "" : value.toString();
-
-            if (action.equals("Active")) {
-                actionLabel.setText("Active");
-                actionLabel.setFont(new Font("SansSerif", Font.BOLD, 9));
-                actionLabel.setForeground(PRIMARY_COLOR);
-                actionLabel.setBorder(new EmptyBorder(4, 6, 4, 6));
-            } else if (action.equals("Discharged")) {
-                actionLabel.setText("Discharged");
-                actionLabel.setFont(new Font("SansSerif", Font.PLAIN, 8));
-                actionLabel.setForeground(new Color(100, 100, 105));
-                actionLabel.setBorder(new EmptyBorder(4, 6, 4, 6));
+            if (status.equals("Actif")) {
+                statusLabel.setForeground(new Color(0, 135, 120));
+                statusLabel.setBackground(new Color(218, 247, 241));
             } else {
-                actionLabel.setText(action);
-                actionLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
-                actionLabel.setForeground(new Color(115, 115, 120));
-                actionLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
+                statusLabel.setForeground(new Color(135, 100, 100));
+                statusLabel.setBackground(new Color(245, 235, 235));
             }
 
             return panel;
+        }
+    }
+
+    private class ActionCellRenderer extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column
+        ) {
+            super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, column
+            );
+
+            setText("⋮");
+            setHorizontalAlignment(SwingConstants.CENTER);
+            setFont(new Font("SansSerif", Font.BOLD, 16));
+            setForeground(new Color(100, 100, 105));
+            setBackground(isSelected ? ACTIVE_ROW_COLOR : Color.WHITE);
+            setBorder(new EmptyBorder(0, 0, 0, 0));
+
+            return this;
         }
     }
 }

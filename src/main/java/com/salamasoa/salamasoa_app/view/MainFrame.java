@@ -67,7 +67,7 @@ public class MainFrame extends JFrame {
         );
 
         // Page Patients réelle, déjà créée.
-        pagesPanel.add(new PatientPanel(), PAGE_PATIENTS);
+        pagesPanel.add(new PatientPanel(patientService), PAGE_PATIENTS);
 
         pagesPanel.add(
                 new MedecinPanel(),
