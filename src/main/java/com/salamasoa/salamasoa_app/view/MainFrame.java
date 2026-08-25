@@ -64,10 +64,7 @@ public class MainFrame extends JFrame {
         pagesPanel.add(new PatientPanel(), PAGE_PATIENTS);
 
         pagesPanel.add(
-                createPlaceholderPage(
-                        "Médecins",
-                        "La page de gestion des médecins sera créée prochainement."
-                ),
+                new MedecinPanel(),
                 PAGE_MEDECINS
         );
 
