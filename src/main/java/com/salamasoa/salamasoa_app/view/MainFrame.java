@@ -56,10 +56,7 @@ public class MainFrame extends JFrame {
         );
 
         pagesPanel.add(
-                createPlaceholderPage(
-                        "Visite du jour",
-                        "La page des visites du jour sera créée prochainement."
-                ),
+                new VisitePanel(),
                 PAGE_VISITES
         );
 
@@ -83,7 +80,7 @@ public class MainFrame extends JFrame {
 
     /**
      * Affiche la page demandée dans la zone de contenu.
-     *
+     * <p>
      * Exemple :
      * showPage(MainFrame.PAGE_PATIENTS);
      */
