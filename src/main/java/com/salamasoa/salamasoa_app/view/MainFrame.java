@@ -25,8 +25,8 @@ public class MainFrame extends JFrame {
         setContentPane(mainPanel);
 
         // Emplacement temporaire du futur menu latéral
-        JPanel sidebarPlaceholder = createSidebarPlaceholder();
-        mainPanel.add(sidebarPlaceholder, BorderLayout.WEST);
+        SidebarPanel sidebarPanel = new SidebarPanel();
+        mainPanel.add(sidebarPanel, BorderLayout.WEST);
 
         // Emplacement temporaire du contenu principal
         contentPanel = createContentPlaceholder();
