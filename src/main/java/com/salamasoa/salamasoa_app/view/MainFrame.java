@@ -29,8 +29,16 @@ public class MainFrame extends JFrame {
         mainPanel.add(sidebarPanel, BorderLayout.WEST);
 
         // Emplacement temporaire du contenu principal
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        rightPanel.setBackground(Color.WHITE);
+
+        TopBarPanel topBarPanel = new TopBarPanel();
+        rightPanel.add(topBarPanel, BorderLayout.NORTH);
+
         contentPanel = createContentPlaceholder();
-        mainPanel.add(contentPanel, BorderLayout.CENTER);
+        rightPanel.add(contentPanel, BorderLayout.CENTER);
+
+        mainPanel.add(rightPanel, BorderLayout.CENTER);
     }
 
     private JPanel createSidebarPlaceholder() {
