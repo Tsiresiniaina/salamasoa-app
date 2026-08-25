@@ -75,15 +75,12 @@ public class VisitePanel extends JPanel {
         newVisitButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         newVisitButton.setBorder(new EmptyBorder(10, 16, 10, 16));
 
-        newVisitButton.addActionListener(event ->
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Le formulaire de création d'une visite "
-                                + "sera créé prochainement.",
-                        "Nouvelle visite",
-                        JOptionPane.INFORMATION_MESSAGE
-                )
-        );
+        newVisitButton.addActionListener(event -> {
+            Window window = SwingUtilities.getWindowAncestor(this);
+
+            VisiteFormDialog dialog = new VisiteFormDialog(window);
+            dialog.setVisible(true);
+        });
 
         headerPanel.add(titlePanel, BorderLayout.WEST);
         headerPanel.add(newVisitButton, BorderLayout.EAST);
