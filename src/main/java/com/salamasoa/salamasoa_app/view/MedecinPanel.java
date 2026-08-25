@@ -372,13 +372,7 @@ public class MedecinPanel extends JPanel {
         JMenuItem deleteItem = new JMenuItem("Supprimer");
 
         editItem.addActionListener(actionEvent ->
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Le formulaire de modification du médecin "
-                                + "sera créé à la prochaine étape.",
-                        "Modifier le médecin",
-                        JOptionPane.INFORMATION_MESSAGE
-                )
+                openEditMedecinDialog(codemed)
         );
 
         toggleStatusItem.addActionListener(actionEvent ->
@@ -400,7 +394,89 @@ public class MedecinPanel extends JPanel {
                 event.getY()
         );
     }
+    private void openEditMedecinDialog(String codemed) {
+        /*
+         * Retrouve le médecin réel correspondant à la ligne
+         * sélectionnée dans le tableau.
+         */
+        Medecin medecin = allMedecins.stream()
+                .filter(currentMedecin ->
+                        currentMedecin.getCodemed().equals(codemed)
+                )
+                .findFirst()
+                .orElse(null);
 
+        if (medecin == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Impossible de retrouver ce médecin.",
+                    "Médecin introuvable",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+
+        Window window = SwingUtilities.getWindowAncestor(this);
+
+        /*
+         * Le second paramètre active le mode modification
+         * et préremplit les données du médecin.
+         */
+        MedecinFormDialog dialog =
+                new MedecinFormDialog(window, medecin);
+
+        dialog.setVisible(true);
+
+        if (!dialog.isSaved()) {
+            return;
+        }
+
+        updateMedecinFromDialog(codemed, dialog);
+    }
+
+    private void updateMedecinFromDialog(
+            String codemed,
+            MedecinFormDialog dialog
+    ) {
+        new SwingWorker<Medecin, Void>() {
+
+            @Override
+            protected Medecin doInBackground() {
+                return medecinService.updateMedecin(
+                        codemed,
+                        dialog.getFullName(),
+                        dialog.getGrade()
+                );
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Medecin updatedMedecin = get();
+
+                    JOptionPane.showMessageDialog(
+                            MedecinPanel.this,
+                            "Le médecin "
+                                    + updatedMedecin.getCodemed()
+                                    + " a été mis à jour avec succès.",
+                            "Modification réussie",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    loadMedecins();
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    showMedecinActionError(
+                            "Impossible de modifier le médecin.",
+                            exception
+                    );
+                }
+            }
+        }.execute();
+    }
     private void toggleMedecinStatus(String codemed) {
         new SwingWorker<Medecin, Void>() {
 

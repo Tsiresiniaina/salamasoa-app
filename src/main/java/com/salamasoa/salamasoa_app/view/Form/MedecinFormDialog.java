@@ -7,6 +7,7 @@ import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 
+import com.salamasoa.salamasoa_app.model.Medecin;
 import com.salamasoa.salamasoa_app.view.GlassPane.BackgroundOverlay;
 
 import java.awt.event.WindowAdapter;
@@ -24,12 +25,33 @@ public class MedecinFormDialog extends JDialog {
 
     private final JTextField fullNameField;
     private final JComboBox<String> gradeComboBox;
-
+    private final Medecin medecinToEdit;
+    private final boolean editMode;
     private boolean saved = false;
     private final BackgroundOverlay.OverlayHandle overlayHandle;
 
+    /*
+     * Mode création : formulaire vide.
+     */
     public MedecinFormDialog(Window owner) {
-        super(owner, "Nouveau médecin", ModalityType.APPLICATION_MODAL);
+        this(owner, null);
+    }
+
+    /*
+     * Mode modification : formulaire prérempli.
+     */
+    public MedecinFormDialog(Window owner, Medecin medecinToEdit) {
+        super(
+                owner,
+                medecinToEdit == null
+                        ? "Nouveau médecin"
+                        : "Modifier le médecin",
+                ModalityType.APPLICATION_MODAL
+        );
+
+        this.medecinToEdit = medecinToEdit;
+        this.editMode = medecinToEdit != null;
+
         overlayHandle = BackgroundOverlay.show(owner);
 
         addWindowListener(new WindowAdapter() {
@@ -40,6 +62,7 @@ public class MedecinFormDialog extends JDialog {
                 }
             }
         });
+
         setUndecorated(true);
         setSize(390, 305);
         setResizable(false);
@@ -57,6 +80,13 @@ public class MedecinFormDialog extends JDialog {
         mainPanel.add(createFormPanel(), BorderLayout.CENTER);
         mainPanel.add(createFooterPanel(), BorderLayout.SOUTH);
 
+        /*
+         * En mode édition, remplit les champs avec les vraies données.
+         */
+        if (editMode) {
+            fillFormWithMedecinData();
+        }
+
         setContentPane(mainPanel);
     }
 
@@ -65,7 +95,9 @@ public class MedecinFormDialog extends JDialog {
         headerPanel.setBackground(Color.WHITE);
         headerPanel.setBorder(new EmptyBorder(17, 18, 15, 14));
 
-        JLabel titleLabel = new JLabel("Nouveau médecin");
+        JLabel titleLabel = new JLabel(
+                editMode ? "Modifier le médecin" : "Nouveau médecin"
+        );
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
         titleLabel.setForeground(TEXT_COLOR);
 
@@ -183,7 +215,9 @@ public class MedecinFormDialog extends JDialog {
         cancelButton.setBorder(new LineBorder(PRIMARY_COLOR, 1, true));
         cancelButton.setPreferredSize(new Dimension(97, 43));
 
-        JButton saveButton = new JButton("Enregistrer  →");
+        JButton saveButton = new JButton(
+                editMode ? "Mettre à jour  →" : "Enregistrer  →"
+        );
         saveButton.setFont(new Font("SansSerif", Font.BOLD, 13));
         saveButton.setForeground(Color.WHITE);
         saveButton.setBackground(PRIMARY_COLOR);
@@ -199,6 +233,23 @@ public class MedecinFormDialog extends JDialog {
         footerPanel.add(saveButton);
 
         return footerPanel;
+    }
+
+    private void fillFormWithMedecinData() {
+        String nom = medecinToEdit.getNom() == null
+                ? ""
+                : medecinToEdit.getNom();
+
+        String prenom = medecinToEdit.getPrenom() == null
+                ? ""
+                : medecinToEdit.getPrenom();
+
+        String fullName = (nom + " " + prenom).trim();
+
+        fullNameField.setText(fullName);
+        fullNameField.setForeground(TEXT_COLOR);
+
+        gradeComboBox.setSelectedItem(medecinToEdit.getGrade());
     }
 
     private void saveDoctor() {
