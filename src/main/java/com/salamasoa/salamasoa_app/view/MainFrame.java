@@ -30,14 +30,11 @@ public class MainFrame extends JFrame {
 
         // Emplacement temporaire du contenu principal
         JPanel rightPanel = new JPanel(new BorderLayout());
-        rightPanel.setBackground(Color.WHITE);
-
+        contentPanel = new PatientPanel();
+        rightPanel.add(contentPanel, BorderLayout.CENTER);
+        //BARRE DE RECHERCHE
         TopBarPanel topBarPanel = new TopBarPanel();
         rightPanel.add(topBarPanel, BorderLayout.NORTH);
-
-        contentPanel = createContentPlaceholder();
-        rightPanel.add(contentPanel, BorderLayout.CENTER);
-
         mainPanel.add(rightPanel, BorderLayout.CENTER);
     }
 
