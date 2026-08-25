@@ -1,12 +1,12 @@
 package com.salamasoa.salamasoa_app;
 
 import com.formdev.flatlaf.FlatLightLaf;
-import org.springframework.boot.SpringApplication;
+import com.salamasoa.salamasoa_app.view.MainFrame;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import javax.swing.*;
-import com.salamasoa.salamasoa_app.view.MainFrame;
+
 @SpringBootApplication
 public class SalamasoaAppApplication {
 
