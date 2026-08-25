@@ -51,10 +51,7 @@ public class MainFrame extends JFrame {
 
         // Pages provisoires : elles seront remplacées progressivement.
         pagesPanel.add(
-                createPlaceholderPage(
-                        "Tableau de bord",
-                        "Le tableau de bord sera créé prochainement."
-                ),
+                new DashboardPanel(),
                 PAGE_DASHBOARD
         );
 
