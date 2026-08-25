@@ -1,5 +1,7 @@
 package com.salamasoa.salamasoa_app.view;
 
+import com.salamasoa.salamasoa_app.view.Form.MedecinFormDialog;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;

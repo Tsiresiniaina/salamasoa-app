@@ -1,4 +1,4 @@
-package com.salamasoa.salamasoa_app.view;
+package com.salamasoa.salamasoa_app.view.Form;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -6,6 +6,11 @@ import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+
+import com.salamasoa.salamasoa_app.view.GlassPane.BackgroundOverlay;
+
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 public class MedecinFormDialog extends JDialog {
 
@@ -21,10 +26,20 @@ public class MedecinFormDialog extends JDialog {
     private final JComboBox<String> gradeComboBox;
 
     private boolean saved = false;
+    private final BackgroundOverlay.OverlayHandle overlayHandle;
 
     public MedecinFormDialog(Window owner) {
         super(owner, "Nouveau médecin", ModalityType.APPLICATION_MODAL);
+        overlayHandle = BackgroundOverlay.show(owner);
 
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent event) {
+                if (overlayHandle != null) {
+                    overlayHandle.close();
+                }
+            }
+        });
         setUndecorated(true);
         setSize(390, 305);
         setResizable(false);

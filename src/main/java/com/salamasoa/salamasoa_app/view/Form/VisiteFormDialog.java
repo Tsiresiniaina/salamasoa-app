@@ -7,6 +7,11 @@ import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 
+import com.salamasoa.salamasoa_app.view.GlassPane.BackgroundOverlay;
+
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+
 public class VisiteFormDialog extends JDialog {
 
     private static final Color PRIMARY_COLOR = new Color(199, 0, 61);
@@ -27,9 +32,21 @@ public class VisiteFormDialog extends JDialog {
     private final JTextField dateField;
 
     private boolean saved = false;
+    private final BackgroundOverlay.OverlayHandle overlayHandle;
 
     public VisiteFormDialog(Window owner) {
         super(owner, "Enregistrement de visite", ModalityType.APPLICATION_MODAL);
+
+        overlayHandle = BackgroundOverlay.show(owner);
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent event) {
+                if (overlayHandle != null) {
+                    overlayHandle.close();
+                }
+            }
+        });
 
         setUndecorated(true);
         setSize(410, 455);
