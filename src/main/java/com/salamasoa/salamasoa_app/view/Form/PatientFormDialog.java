@@ -9,7 +9,10 @@ import java.awt.event.FocusEvent;
 
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+
 import com.salamasoa.salamasoa_app.view.GlassPane.BackgroundOverlay;
+
+import com.salamasoa.salamasoa_app.model.Patient;
 
 public class PatientFormDialog extends JDialog {
 
@@ -28,11 +31,34 @@ public class PatientFormDialog extends JDialog {
     private final JRadioButton femaleButton;
     private final JTextArea addressArea;
 
+    private final Patient patientToEdit;
+    private final boolean editMode;
+
     private boolean saved = false;
     private final BackgroundOverlay.OverlayHandle overlayHandle;
+
+    /*
+     * Constructeur utilisé pour créer un nouveau patient.
+     */
     public PatientFormDialog(Window owner) {
-        super(owner, "Nouveau Patient", ModalityType.APPLICATION_MODAL);
-        //BACKGROUND OVERLAY
+        this(owner, null);
+    }
+
+    /*
+     * Constructeur utilisé pour modifier un patient existant.
+     */
+    public PatientFormDialog(Window owner, Patient patientToEdit) {
+        super(
+                owner,
+                patientToEdit == null
+                        ? "Nouveau Patient"
+                        : "Modifier le patient",
+                ModalityType.APPLICATION_MODAL
+        );
+
+        this.patientToEdit = patientToEdit;
+        this.editMode = patientToEdit != null;
+
         overlayHandle = BackgroundOverlay.show(owner);
 
         addWindowListener(new WindowAdapter() {
@@ -43,6 +69,7 @@ public class PatientFormDialog extends JDialog {
                 }
             }
         });
+
         setUndecorated(true);
         setSize(410, 390);
         setResizable(false);
@@ -81,6 +108,14 @@ public class PatientFormDialog extends JDialog {
         mainPanel.add(formPanel, BorderLayout.CENTER);
         mainPanel.add(createFooterPanel(), BorderLayout.SOUTH);
 
+        /*
+         * En mode modification, les champs sont remplis
+         * à partir des données réelles du patient.
+         */
+        if (editMode) {
+            fillFormWithPatientData();
+        }
+
         setContentPane(mainPanel);
     }
 
@@ -91,7 +126,9 @@ public class PatientFormDialog extends JDialog {
                 new EmptyBorder(18, 20, 16, 16)
         );
 
-        JLabel titleLabel = new JLabel("Nouveau Patient");
+        JLabel titleLabel = new JLabel(
+                editMode ? "Modifier le patient" : "Nouveau Patient"
+        );
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 17));
         titleLabel.setForeground(TEXT_COLOR);
 
@@ -203,7 +240,9 @@ public class PatientFormDialog extends JDialog {
         cancelButton.setBorder(new LineBorder(PRIMARY_COLOR, 1, true));
         cancelButton.setPreferredSize(new Dimension(102, 44));
 
-        JButton saveButton = new JButton("Enregistrer  →");
+        JButton saveButton = new JButton(
+                editMode ? "Mettre à jour  →" : "Enregistrer  →"
+        );
         saveButton.setFont(new Font("SansSerif", Font.BOLD, 14));
         saveButton.setForeground(Color.WHITE);
         saveButton.setBackground(PRIMARY_COLOR);
@@ -219,6 +258,35 @@ public class PatientFormDialog extends JDialog {
         footerPanel.add(saveButton);
 
         return footerPanel;
+    }
+
+    private void fillFormWithPatientData() {
+        String nom = patientToEdit.getNom() == null
+                ? ""
+                : patientToEdit.getNom();
+
+        String prenom = patientToEdit.getPrenom() == null
+                ? ""
+                : patientToEdit.getPrenom();
+
+        String fullName = (nom + " " + prenom).trim();
+
+        fullNameField.setText(fullName);
+        fullNameField.setForeground(TEXT_COLOR);
+
+        if (patientToEdit.getSexe() == 'H'
+                || patientToEdit.getSexe() == 'h') {
+
+            maleButton.setSelected(true);
+
+        } else if (patientToEdit.getSexe() == 'F'
+                || patientToEdit.getSexe() == 'f') {
+
+            femaleButton.setSelected(true);
+        }
+
+        addressArea.setText(patientToEdit.getAdresse());
+        addressArea.setForeground(TEXT_COLOR);
     }
 
     private void savePatient() {

@@ -391,13 +391,7 @@ public class PatientPanel extends JPanel {
         JMenuItem deleteItem = new JMenuItem("Supprimer");
 
         editItem.addActionListener(actionEvent ->
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Le formulaire de modification sera créé "
-                                + "à la prochaine étape.",
-                        "Modifier le patient",
-                        JOptionPane.INFORMATION_MESSAGE
-                )
+                openEditPatientDialog(codepat)
         );
 
         toggleStatusItem.addActionListener(actionEvent ->
@@ -418,6 +412,91 @@ public class PatientPanel extends JPanel {
                 event.getX(),
                 event.getY()
         );
+    }
+
+    private void openEditPatientDialog(String codepat) {
+        /*
+         * Retrouve l'objet Patient réel correspondant à la ligne
+         * sélectionnée dans le tableau.
+         */
+        Patient patient = allPatients.stream()
+                .filter(currentPatient ->
+                        currentPatient.getCodepat().equals(codepat)
+                )
+                .findFirst()
+                .orElse(null);
+
+        if (patient == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Impossible de retrouver ce patient.",
+                    "Patient introuvable",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+
+        Window window = SwingUtilities.getWindowAncestor(this);
+
+        /*
+         * Le deuxième paramètre active le mode modification
+         * et préremplit automatiquement les champs.
+         */
+        PatientFormDialog dialog =
+                new PatientFormDialog(window, patient);
+
+        dialog.setVisible(true);
+
+        if (!dialog.isSaved()) {
+            return;
+        }
+
+        updatePatientFromDialog(codepat, dialog);
+    }
+
+    private void updatePatientFromDialog(
+            String codepat,
+            PatientFormDialog dialog
+    ) {
+        new SwingWorker<Patient, Void>() {
+
+            @Override
+            protected Patient doInBackground() {
+                return patientService.updatePatient(
+                        codepat,
+                        dialog.getFullName(),
+                        dialog.getSexe(),
+                        dialog.getAddress()
+                );
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Patient updatedPatient = get();
+
+                    JOptionPane.showMessageDialog(
+                            PatientPanel.this,
+                            "Le patient "
+                                    + updatedPatient.getCodepat()
+                                    + " a été mis à jour avec succès.",
+                            "Modification réussie",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    loadPatients();
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    showActionError(
+                            "Impossible de modifier le patient.",
+                            exception
+                    );
+                }
+            }
+        }.execute();
     }
 
     private void togglePatientStatus(String codepat) {

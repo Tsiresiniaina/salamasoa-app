@@ -38,7 +38,7 @@ public class PatientService {
 
     /**
      * Inverse le statut actif/inactif d'un patient.
-     *
+     * <p>
      * Actif   → Inactif
      * Inactif → Actif
      */
@@ -95,6 +95,43 @@ public class PatientService {
         return patientRepository.save(patient);
     }
 
+    /**
+     * Met à jour les informations modifiables d'un patient existant.
+     * <p>
+     * Le code patient et le statut actif/inactif ne sont pas modifiés ici.
+     */
+    public Patient updatePatient(
+            String codepat,
+            String fullName,
+            String sexe,
+            String adresse
+    ) {
+        validatePatientData(fullName, sexe, adresse);
+
+        Patient patient = patientRepository.findById(codepat)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Patient introuvable : " + codepat
+                ));
+
+        patient.setNom(fullName.trim());
+
+        /*
+         * Le formulaire actuel possède un champ « Nom complet » unique.
+         * Nous conservons donc le prénom à null pour le moment.
+         */
+        patient.setPrenom(null);
+
+        patient.setSexe(convertSexe(sexe));
+        patient.setAdresse(adresse.trim());
+
+        /*
+         * patient.setActif(...) n'est volontairement pas présent :
+         * une modification de profil ne doit pas changer le statut
+         * Actif / Inactif du patient.
+         */
+        return patientRepository.save(patient);
+    }
+
     private void validatePatientData(
             String fullName,
             String sexe,
@@ -132,7 +169,7 @@ public class PatientService {
 
     /**
      * Génère PT-000001, PT-000002, etc.
-     *
+     * <p>
      * synchronized évite que deux demandes simultanées dans la même
      * application reçoivent le même code.
      */
