@@ -50,7 +50,7 @@ public class VisitePanel extends JPanel {
 
     // NOUVEAU : compteur pour ignorer les réponses périmées (voir plus bas)
     private int visiteRequestCounter = 0;
-
+    private int statsRequestCounter = 0;   // versionne les rechargements des cartes
     private boolean loading = false;
     public VisitePanel(VisiteService _visiteService,PatientService _patientService,MedecinService _medecinService) {
         this.visiteService = _visiteService;
@@ -64,6 +64,7 @@ public class VisitePanel extends JPanel {
         add(createVisitsSection(), BorderLayout.CENTER);
 
         loadVisitesForSelectedDate();
+        refreshStatisticsToday();
     }
 
     private JPanel createTopSection() {
@@ -191,8 +192,6 @@ public class VisitePanel extends JPanel {
             return;
         }
 
-        // On crée une liste de tâches pour réutiliser la boucle de reprise au cas où
-        // l'enregistrement échoue (on affiche le message puis on réouvre le formulaire).
         SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
             @Override
             protected Boolean doInBackground() {
@@ -215,10 +214,7 @@ public class VisitePanel extends JPanel {
                         JOptionPane.showMessageDialog(VisitePanel.this,
                                 "Visite enregistrée avec succès.",
                                 "Succès", JOptionPane.INFORMATION_MESSAGE);
-                        // 3) Recharge la liste des visites pour la date courante
-                        loadVisitesForSelectedDate();
                     } else {
-                        // Ré-affiche le formulaire pour corriger sans perdre la saisie
                         JOptionPane.showMessageDialog(VisitePanel.this,
                                 "Enregistrement impossible : le médecin est déjà "
                                         + "occupé à cet horaire, ou le patient est "
@@ -231,6 +227,18 @@ public class VisitePanel extends JPanel {
                             "Erreur lors de l'enregistrement de la visite : " +
                                     ex.getMessage(),
                             "Erreur", JOptionPane.ERROR_MESSAGE);
+                } finally {
+                    // Décale le filtre du panneau sur la date de la visite créée
+                    // (le ChangeListener du spinner recharge la liste).
+                    dateSpinner.setValue(Date.from(
+                            dateHeure.atZone(ZoneId.systemDefault()).toInstant()));
+
+                    // Recharge la liste (indispensable si la date n'a pas changé :
+                    // un setValue sur la même valeur n'émet aucun événement).
+                    loadVisitesForSelectedDate();
+
+                    // Recalcule les cartes : elles restent calées sur AUJOURD'HUI.
+                    refreshStatisticsToday();
                 }
             }
         };
@@ -484,7 +492,7 @@ public class VisitePanel extends JPanel {
                     List<Visite> visites = get();
 
                     displayVisites(visites);
-                    updateStatistics(visites);
+                    //updateStatistics(visites);
 
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
@@ -520,32 +528,75 @@ public class VisitePanel extends JPanel {
         }
     }
 
-    private void updateStatistics(List<Visite> visites) {
-        long waitingCount = visites.stream()
-                .filter(visite ->
-                        visite.getStatut() == StatutVisite.PLANIFIEE
-                                || visite.getStatut()
-                                == StatutVisite.EN_COURS
-                )
+    /**
+     * Calcule et affiche les 3 cartes à partir des visites du jour.
+     * Salle d'attente = visites Planifiée prévues dans les 2 prochaines heures.
+     */
+    /**
+     * Calcule et affiche les 3 cartes à partir des visites du jour.
+     * - VISITES DU JOUR : les visites actives du jour (Annulées exclues).
+     * - SALLE D'ATTENTE : visites Planifiée prévues dans les 2 prochaines heures.
+     * - EFFECTUÉES : les visites Terminée aujourd'hui.
+     */
+    private void updateStatistics(List<Visite> todayVisites) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime endWindow = now.plusHours(2);
+
+        // Visites "actives" du jour : tout sauf les annulées
+        long activeCount = todayVisites.stream()
+                .filter(visite -> visite.getStatut() != StatutVisite.ANNULEE)
                 .count();
 
-        long completedCount = visites.stream()
-                .filter(visite ->
-                        visite.getStatut() == StatutVisite.TERMINEE
-                )
+        // Salle d'attente : Planifiée dont l'heure tombe dans [maintenant, +2h]
+        long waitingCount = todayVisites.stream()
+                .filter(visite -> visite.getStatut() == StatutVisite.PLANIFIEE)
+                .filter(visite -> !visite.getDateheure().isBefore(now)
+                        && !visite.getDateheure().isAfter(endWindow))
                 .count();
 
-        totalVisitsValueLabel.setText(
-                String.valueOf(visites.size())
-        );
+        // Effectuées : Terminée du jour
+        long completedCount = todayVisites.stream()
+                .filter(visite -> visite.getStatut() == StatutVisite.TERMINEE)
+                .count();
 
-        waitingValueLabel.setText(
-                String.valueOf(waitingCount)
-        );
+        totalVisitsValueLabel.setText(String.valueOf(activeCount));
+        waitingValueLabel.setText(String.valueOf(waitingCount));
+        completedValueLabel.setText(String.valueOf(completedCount));
+    }
+    /**
+     * Recalcule les cartes (Visites du jour, Salle d'attente, Effectuées) à partir
+     * des visites d'AUJOURD'HUI uniquement. Peu importe le filtre du tableau :
+     * on ne regarde jamais la date du filtre ici, mais System.currentDate.
+     */
+    private void refreshStatisticsToday() {
+        LocalDate today = LocalDate.now();
+        int requestId = ++statsRequestCounter;
 
-        completedValueLabel.setText(
-                String.valueOf(completedCount)
-        );
+        new SwingWorker<List<Visite>, Void>() {
+            @Override
+            protected List<Visite> doInBackground() {
+                return visiteService.getVisitesByDate(today);
+            }
+
+            @Override
+            protected void done() {
+                // Ignore les réponses périmées (voir loadVisitesForSelectedDate).
+                if (requestId != statsRequestCounter) {
+                    return;
+                }
+
+                try {
+                    List<Visite> visitesToday = get();
+                    updateStatistics(visitesToday);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException e) {
+                    // Erreur silencieuse : on garde les dernières valeurs affichées
+                    // plutôt que de bloquer la page.
+                    e.printStackTrace();
+                }
+            }
+        }.execute();
     }
     private String formatPatientName(Visite visite) {
         String patientNom = visite.getPatient().getNom() == null
