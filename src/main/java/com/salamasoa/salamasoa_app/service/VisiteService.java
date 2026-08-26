@@ -226,4 +226,5 @@ public class VisiteService {
         return VISITE_CODE_PREFIX
                 + String.format("%06d", nextNumber);
     }
+
 }
