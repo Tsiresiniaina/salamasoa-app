@@ -2,6 +2,7 @@ package com.salamasoa.salamasoa_app.view.Form;
 
 import com.salamasoa.salamasoa_app.model.Medecin;
 import com.salamasoa.salamasoa_app.model.Patient;
+import com.salamasoa.salamasoa_app.model.Visite;
 import com.salamasoa.salamasoa_app.view.GlassPane.BackgroundOverlay;
 
 import javax.swing.*;
@@ -41,6 +42,12 @@ public class VisiteFormDialog extends JDialog {
     private boolean saved = false;
     private boolean filteringPatients = false;
 
+    /*
+     * Vaut true lorsque le formulaire modifie une visite existante.
+     * Sert à adapter le titre, le bouton et la validation de la date.
+     */
+    private final boolean editMode;
+
     private final BackgroundOverlay.OverlayHandle overlayHandle;
 
     /*
@@ -56,7 +63,33 @@ public class VisiteFormDialog extends JDialog {
             List<Patient> patients,
             List<Medecin> medecins
     ) {
-        super(owner, "Enregistrement de visite", ModalityType.APPLICATION_MODAL);
+        this(owner, patients, medecins, null);
+    }
+
+    /**
+     * Constructeur de modification.
+     *
+     * Quand visiteToEdit est non nul, le formulaire s'ouvre en mode édition :
+     * champs préremplis, titre et bouton adaptés, et le spinner de date
+     * accepte l'horaire d'origine même s'il est déjà passé.
+     *
+     * @param visiteToEdit visite à modifier, ou null pour une création
+     */
+    public VisiteFormDialog(
+            Window owner,
+            List<Patient> patients,
+            List<Medecin> medecins,
+            Visite visiteToEdit
+    ) {
+        super(
+                owner,
+                visiteToEdit == null
+                        ? "Enregistrement de visite"
+                        : "Modification de la visite",
+                ModalityType.APPLICATION_MODAL
+        );
+
+        this.editMode = visiteToEdit != null;
 
         this.allPatients = new ArrayList<>(patients);
 
@@ -92,6 +125,94 @@ public class VisiteFormDialog extends JDialog {
         mainPanel.add(createFooterPanel(), BorderLayout.SOUTH);
 
         setContentPane(mainPanel);
+
+        /*
+         * Préremplissage : uniquement en mode modification.
+         * En création, le comportement d'origine est inchangé.
+         */
+        if (editMode) {
+            fillFormWith(visiteToEdit);
+        }
+    }
+
+    /**
+     * Prérremplit les champs avec les valeurs de la visite à modifier.
+     */
+    private void fillFormWith(Visite visite) {
+        selectPatientInComboBox(visite.getPatient());
+        selectMedecinInComboBox(visite.getMedecin());
+
+        LocalDateTime dateheure = visite.getDateheure();
+
+        Date date = Date.from(
+                dateheure.atZone(ZoneId.systemDefault()).toInstant()
+        );
+
+        /*
+         * Le spinner de date a pour minimum « aujourd'hui ». Si la visite
+         * est plus ancienne, on abaisse ce minimum, sinon setValue serait
+         * refusé et l'horaire d'origine ne s'afficherait pas.
+         */
+        SpinnerDateModel dateModel = (SpinnerDateModel) dateSpinner.getModel();
+
+        Comparable<?> currentStart = dateModel.getStart();
+
+        if (currentStart instanceof Date startDate
+                && date.before(startDate)) {
+            dateModel.setStart(date);
+        }
+
+        dateSpinner.setValue(date);
+        timeSpinner.setValue(date);
+    }
+
+    /**
+     * Sélectionne le patient dans la liste déroulante et met à jour le texte
+     * de l'éditeur, la combo patient étant éditable.
+     */
+    private void selectPatientInComboBox(Patient patient) {
+        if (patient == null) {
+            return;
+        }
+
+        for (int index = 0; index < patientComboBox.getItemCount(); index++) {
+            Patient item = patientComboBox.getItemAt(index);
+
+            if (item != null
+                    && item.getCodepat().equals(patient.getCodepat())) {
+
+                patientComboBox.setSelectedIndex(index);
+
+                JTextField editor = (JTextField) patientComboBox
+                        .getEditor()
+                        .getEditorComponent();
+
+                editor.setText(getPatientFullName(item));
+                editor.setForeground(TEXT_COLOR);
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * Sélectionne le médecin dans la liste déroulante.
+     */
+    private void selectMedecinInComboBox(Medecin medecin) {
+        if (medecin == null) {
+            return;
+        }
+
+        for (int index = 0; index < doctorComboBox.getItemCount(); index++) {
+            Medecin item = doctorComboBox.getItemAt(index);
+
+            if (item != null
+                    && item.getCodemed().equals(medecin.getCodemed())) {
+
+                doctorComboBox.setSelectedIndex(index);
+                return;
+            }
+        }
     }
 
     private JPanel createHeaderPanel() {
@@ -99,7 +220,11 @@ public class VisiteFormDialog extends JDialog {
         headerPanel.setBackground(Color.WHITE);
         headerPanel.setBorder(new EmptyBorder(17, 18, 15, 14));
 
-        JLabel titleLabel = new JLabel("Enregistrement de visite");
+        JLabel titleLabel = new JLabel(
+                editMode
+                        ? "Modification de la visite"
+                        : "Enregistrement de visite"
+        );
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
         titleLabel.setForeground(TEXT_COLOR);
 
@@ -361,7 +486,11 @@ public class VisiteFormDialog extends JDialog {
         cancelButton.setBorder(new LineBorder(PRIMARY_COLOR, 1, true));
         cancelButton.setPreferredSize(new Dimension(97, 43));
 
-        JButton confirmButton = new JButton("Confirmer la visite  →");
+        JButton confirmButton = new JButton(
+                editMode
+                        ? "Enregistrer  →"
+                        : "Confirmer la visite  →"
+        );
         confirmButton.setFont(new Font("SansSerif", Font.BOLD, 13));
         confirmButton.setForeground(Color.WHITE);
         confirmButton.setBackground(PRIMARY_COLOR);
@@ -426,7 +555,11 @@ public class VisiteFormDialog extends JDialog {
         }
 // Règle métier (validée aussi côté service) : on vérifie ici de façon
         // conviviale qu'on ne planifie pas une visite dans le passé.
-        if (getDateHeureVisite().isBefore(LocalDateTime.now())) {
+        //
+        // En modification, ce contrôle est laissé au service : il sait si
+        // l'horaire a réellement changé et ne bloque donc pas la correction
+        // d'un patient sur une visite déjà commencée.
+        if (!editMode && getDateHeureVisite().isBefore(LocalDateTime.now())) {
             showRequiredMessage(
                     "La date et l'heure de la visite doivent être dans le futur."
             );

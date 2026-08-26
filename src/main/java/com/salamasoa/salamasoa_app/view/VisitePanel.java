@@ -17,8 +17,6 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -29,6 +27,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class VisitePanel extends JPanel {
 
@@ -55,10 +56,11 @@ public class VisitePanel extends JPanel {
     private int visiteRequestCounter = 0;
     private int statsRequestCounter = 0;   // versionne les rechargements des cartes
     private boolean loading = false;
+
     /*
-     * Visites actuellement affichées dans le tableau, dans le même ordre
-     * que les lignes. Permet de retrouver l'objet Visite complet à partir
-     * de l'indice de la ligne cliquée, sans relire la base.
+     * Visites actuellement affichees dans le tableau, dans le meme ordre
+     * que les lignes. Permet de retrouver l'objet Visite complet a partir
+     * de l'indice de la ligne cliquee, sans relire la base.
      */
     private final List<Visite> displayedVisites = new ArrayList<>();
 
@@ -453,8 +455,9 @@ public class VisitePanel extends JPanel {
 
         visiteTable.getColumnModel().getColumn(4)
                 .setCellRenderer(new ActionCellRenderer());
+
         // Rend la colonne ACTION cliquable.
-        configureActionMenu();                 // ← AJOUTER CETTE LIGNE
+        configureActionMenu();
 
         JTableHeader tableHeader = visiteTable.getTableHeader();
         tableHeader.setFont(new Font("SansSerif", Font.BOLD, 8));
@@ -528,13 +531,14 @@ public class VisitePanel extends JPanel {
 
     private void displayVisites(List<Visite> visites) {
         tableModel.setRowCount(0);
+
         /*
-         * On garde les visites affichées dans le même ordre que les lignes
+         * On garde les visites affichees dans le meme ordre que les lignes
          * du tableau : le menu Action s'en sert pour retrouver la visite
-         * cliquée sans repasser par la base.
+         * cliquee sans repasser par la base.
          */
-        displayedVisites.clear();              // ← AJOUTER
-        displayedVisites.addAll(visites);      // ← AJOUTER
+        displayedVisites.clear();
+        displayedVisites.addAll(visites);
 
         for (Visite visite : visites) {
             tableModel.addRow(new Object[]{
@@ -552,7 +556,7 @@ public class VisitePanel extends JPanel {
      * ==================================================================== */
 
     /**
-     * Rend la colonne ACTION cliquable : un clic sur « ⋮ » ouvre le menu
+     * Rend la colonne ACTION cliquable : un clic sur le "..." ouvre le menu
      * contextuel de la visite correspondante.
      */
     private void configureActionMenu() {
@@ -564,7 +568,7 @@ public class VisitePanel extends JPanel {
                 int column = visiteTable.columnAtPoint(event.getPoint());
 
                 /*
-                 * La colonne ACTION est la colonne numéro 4 :
+                 * La colonne ACTION est la colonne numero 4 :
                  * HEURE, NOM DU PATIENT, SEXE, STATUT, ACTION
                  */
                 if (row < 0 || column != 4) {
@@ -572,8 +576,8 @@ public class VisitePanel extends JPanel {
                 }
 
                 /*
-                 * Sécurité : le tableau a pu être rechargé entre l'affichage
-                 * et le clic (SwingWorker terminé entre-temps).
+                 * Securite : le tableau a pu etre recharge entre l'affichage
+                 * et le clic (SwingWorker termine entre-temps).
                  */
                 if (row >= displayedVisites.size()) {
                     return;
@@ -587,19 +591,48 @@ public class VisitePanel extends JPanel {
     /**
      * Construit le menu contextuel d'une visite.
      *
-     * Les transitions proposées suivent le cycle de vie :
-     * Planifiée → En cours → Terminée, avec possibilité d'annuler tant que
-     * la visite n'est pas terminée. Une visite terminée ou annulée est
-     * définitive.
+     * Les transitions proposees suivent le cycle de vie :
+     * Planifiee -> En cours -> Terminee, avec possibilite d'annuler tant que
+     * la visite n'est pas terminee. Une visite terminee ou annulee est
+     * definitive.
      */
     private void showVisiteActionsMenu(Visite visite, MouseEvent event) {
         JPopupMenu popupMenu = new JPopupMenu();
 
         StatutVisite statut = visite.getStatut();
 
+        /*
+         * Seule une visite encore planifiee se modifie : une consultation
+         * commencee ne peut plus changer de patient, de medecin ni d'horaire,
+         * et une visite terminee ou annulee appartient a l'historique.
+         */
+        boolean modifiable = statut == StatutVisite.PLANIFIEE;
+
+        // Modification du patient, du medecin ou de la date/heure.
+        JMenuItem editItem = new JMenuItem("Modifier la visite");
+        editItem.setEnabled(modifiable);
+        editItem.addActionListener(actionEvent ->
+                openEditVisiteDialog(visite)
+        );
+
+        /*
+         * Une entree grisee sans explication laisse croire a un bug :
+         * l'infobulle indique pourquoi la modification est impossible.
+         */
+        if (!modifiable) {
+            editItem.setToolTipText(
+                    statut == StatutVisite.EN_COURS
+                            ? "La consultation a deja commence"
+                            : "Visite " + statut.getLibelle().toLowerCase()
+            );
+        }
+
+        popupMenu.add(editItem);
+        popupMenu.addSeparator();
+
         if (statut == StatutVisite.PLANIFIEE) {
             popupMenu.add(createStatusMenuItem(
-                    "Démarrer la consultation",
+                    "Demarrer la consultation",
                     visite,
                     StatutVisite.EN_COURS
             ));
@@ -607,7 +640,7 @@ public class VisitePanel extends JPanel {
 
         if (statut == StatutVisite.EN_COURS) {
             popupMenu.add(createStatusMenuItem(
-                    "Marquer comme terminée",
+                    "Marquer comme terminee",
                     visite,
                     StatutVisite.TERMINEE
             ));
@@ -623,8 +656,8 @@ public class VisitePanel extends JPanel {
         }
 
         /*
-         * Visite terminée ou annulée : on l'indique explicitement plutôt que
-         * d'afficher un menu vide qui semblerait cassé.
+         * Visite terminee ou annulee : on l'indique explicitement plutot que
+         * d'afficher un menu vide qui semblerait casse.
          */
         if (statut == StatutVisite.TERMINEE
                 || statut == StatutVisite.ANNULEE) {
@@ -639,7 +672,7 @@ public class VisitePanel extends JPanel {
     }
 
     /**
-     * Crée une entrée de menu qui applique un nouveau statut à la visite.
+     * Cree une entree de menu qui applique un nouveau statut a la visite.
      */
     private JMenuItem createStatusMenuItem(
             String label,
@@ -651,14 +684,14 @@ public class VisitePanel extends JPanel {
         menuItem.addActionListener(actionEvent -> {
 
             /*
-             * L'annulation est irréversible : on demande confirmation.
+             * L'annulation est irreversible : on demande confirmation.
              */
             if (nouveauStatut == StatutVisite.ANNULEE) {
                 int choice = JOptionPane.showConfirmDialog(
                         VisitePanel.this,
                         "Voulez-vous vraiment annuler la visite de "
                                 + getPatientDisplayName(visite) + " ?\n\n"
-                                + "Cette action est définitive.",
+                                + "Cette action est definitive.",
                         "Confirmation d'annulation",
                         JOptionPane.YES_NO_OPTION,
                         JOptionPane.WARNING_MESSAGE
@@ -676,7 +709,7 @@ public class VisitePanel extends JPanel {
     }
 
     /**
-     * Applique le nouveau statut en arrière-plan, puis recharge la liste
+     * Applique le nouveau statut en arriere-plan, puis recharge la liste
      * et les cartes statistiques.
      */
     private void changeVisiteStatus(
@@ -701,14 +734,14 @@ public class VisitePanel extends JPanel {
 
                 try {
                     /*
-                     * On appelle get() pour récupérer une éventuelle erreur,
-                     * mais on n'exploite pas l'entité renvoyée : elle provient
+                     * On appelle get() pour recuperer une eventuelle erreur,
+                     * mais on n'exploite pas l'entite renvoyee : elle provient
                      * d'un findById, donc ses relations patient et medecin sont
-                     * des proxies non initialisés. Y accéder ici, hors session
-                     * Hibernate, lèverait une LazyInitializationException.
+                     * des proxies non initialises. Y acceder ici, hors session
+                     * Hibernate, leverait une LazyInitializationException.
                      *
-                     * La visite locale, elle, a été chargée avec @EntityGraph :
-                     * ses relations sont complètes.
+                     * La visite locale, elle, a ete chargee avec @EntityGraph :
+                     * ses relations sont completes.
                      */
                     get();
 
@@ -719,7 +752,7 @@ public class VisitePanel extends JPanel {
                                     + " est maintenant : "
                                     + nouveauStatut.getLibelle()
                                     + ".",
-                            "Statut mis à jour",
+                            "Statut mis a jour",
                             JOptionPane.INFORMATION_MESSAGE
                     );
 
@@ -740,8 +773,166 @@ public class VisitePanel extends JPanel {
     }
 
     /**
-     * Affiche le message d'erreur réel remonté par la couche service,
-     * plutôt qu'un message générique.
+     * Ouvre le formulaire en mode modification, prerempli avec la visite.
+     * Les listes de patients et de medecins actifs sont chargees en
+     * arriere-plan, comme pour la creation.
+     */
+    private void openEditVisiteDialog(Visite visite) {
+        setLoading(true);
+
+        new SwingWorker<VisiteFormLists, Void>() {
+
+            @Override
+            protected VisiteFormLists doInBackground() {
+                List<Patient> patients = patientService.getAllPatients()
+                        .stream()
+                        .filter(Patient::isActif)
+                        .collect(Collectors.toList());
+
+                List<Medecin> medecins = medecinService.getAllMedecins()
+                        .stream()
+                        .filter(Medecin::isActif)
+                        .collect(Collectors.toList());
+
+                /*
+                 * Le patient ou le medecin de la visite a pu etre desactive
+                 * depuis sa creation. On le reinjecte dans la liste, sinon
+                 * le formulaire s'ouvrirait avec un champ vide.
+                 */
+                if (visite.getPatient() != null
+                        && patients.stream().noneMatch(patient ->
+                        patient.getCodepat()
+                                .equals(visite.getPatient().getCodepat()))) {
+                    patients.add(visite.getPatient());
+                }
+
+                if (visite.getMedecin() != null
+                        && medecins.stream().noneMatch(medecin ->
+                        medecin.getCodemed()
+                                .equals(visite.getMedecin().getCodemed()))) {
+                    medecins.add(visite.getMedecin());
+                }
+
+                return new VisiteFormLists(patients, medecins);
+            }
+
+            @Override
+            protected void done() {
+                setLoading(false);
+
+                try {
+                    VisiteFormLists lists = get();
+
+                    VisiteFormDialog dialog = new VisiteFormDialog(
+                            SwingUtilities.getWindowAncestor(VisitePanel.this),
+                            lists.patients(),
+                            lists.medecins(),
+                            visite
+                    );
+
+                    dialog.setVisible(true);
+
+                    if (dialog.isSaved()) {
+                        updateVisiteFromDialog(visite, dialog);
+                    }
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    showActionError(
+                            "Impossible de charger les medecins / patients.",
+                            exception
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * Envoie la modification au service, puis recharge la liste et les cartes.
+     */
+    private void updateVisiteFromDialog(
+            Visite visite,
+            VisiteFormDialog dialog
+    ) {
+        Patient patient = dialog.getSelectedPatient();
+        Medecin medecin = dialog.getSelectedMedecin();
+        LocalDateTime dateHeure = dialog.getDateHeureVisite();
+
+        if (patient == null || medecin == null || dateHeure == null) {
+            JOptionPane.showMessageDialog(
+                    VisitePanel.this,
+                    "Veuillez renseigner le patient, le medecin, "
+                            + "la date et l'heure.",
+                    "Formulaire incomplet",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        setLoading(true);
+
+        new SwingWorker<Visite, Void>() {
+
+            @Override
+            protected Visite doInBackground() {
+                return visiteService.updateVisite(
+                        visite.getCodevisite(),
+                        patient.getCodepat(),
+                        medecin.getCodemed(),
+                        dateHeure
+                );
+            }
+
+            @Override
+            protected void done() {
+                setLoading(false);
+
+                try {
+                    /*
+                     * Meme precaution que pour le changement de statut :
+                     * on n'exploite pas les relations de l'entite renvoyee,
+                     * qui provient d'un findById (proxies non initialises).
+                     */
+                    get();
+
+                    JOptionPane.showMessageDialog(
+                            VisitePanel.this,
+                            "La visite "
+                                    + visite.getCodevisite()
+                                    + " a ete modifiee avec succes.",
+                            "Modification reussie",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    /*
+                     * La visite a pu etre deplacee a une autre date :
+                     * on cale le filtre dessus pour qu'elle reste visible.
+                     */
+                    dateSpinner.setValue(Date.from(
+                            dateHeure.atZone(ZoneId.systemDefault())
+                                    .toInstant()
+                    ));
+
+                    loadVisitesForSelectedDate();
+                    refreshStatisticsToday();
+
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+
+                } catch (ExecutionException exception) {
+                    showActionError(
+                            "Impossible de modifier la visite.",
+                            exception
+                    );
+                }
+            }
+        }.execute();
+    }
+    /**
+     * Affiche le message d'erreur reel remonte par la couche service,
+     * plutot qu'un message generique.
      */
     private void showActionError(
             String title,
@@ -760,8 +951,8 @@ public class VisitePanel extends JPanel {
     }
 
     /**
-     * Nom du patient en texte brut, pour les boîtes de dialogue.
-     * (formatPatientName produit du HTML destiné au tableau.)
+     * Nom du patient en texte brut, pour les boites de dialogue.
+     * (formatPatientName produit du HTML destine au tableau.)
      */
     private String getPatientDisplayName(Visite visite) {
         if (visite.getPatient() == null) {
@@ -780,6 +971,7 @@ public class VisitePanel extends JPanel {
 
         return fullName.isBlank() ? visite.getCodevisite() : fullName;
     }
+
     /**
      * Calcule et affiche les 3 cartes à partir des visites du jour.
      * Salle d'attente = visites Planifiée prévues dans les 2 prochaines heures.
