@@ -298,11 +298,15 @@ public class VisiteFormDialog extends JDialog {
     }
 
     private JSpinner createDateSpinner() {
+        // Date du jour : valeur initiale ET limite minimale du spinner.
+        // L'utilisateur ne peut donc jamais descendre avant aujourd'hui.
+        Date aujourdhui = new Date();
+
         JSpinner spinner = new JSpinner(
                 new SpinnerDateModel(
-                        new Date(),
-                        null,
-                        null,
+                        aujourdhui,          // valeur initiale
+                        aujourdhui,          // minimum = aujourd'hui
+                        null,                // maximum illimité (futur)
                         Calendar.DAY_OF_MONTH
                 )
         );
@@ -420,7 +424,14 @@ public class VisiteFormDialog extends JDialog {
             );
             return;
         }
-
+// Règle métier (validée aussi côté service) : on vérifie ici de façon
+        // conviviale qu'on ne planifie pas une visite dans le passé.
+        if (getDateHeureVisite().isBefore(LocalDateTime.now())) {
+            showRequiredMessage(
+                    "La date et l'heure de la visite doivent être dans le futur."
+            );
+            return;
+        }
         saved = true;
         dispose();
     }

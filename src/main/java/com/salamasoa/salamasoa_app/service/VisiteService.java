@@ -131,6 +131,13 @@ public class VisiteService {
             );
         }
 
+        // Règle métier : une consultation ne peut pas être planifiée dans le passé.
+        if (dateheure.isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException(
+                    "Impossible de planifier une visite à une date ou heure "
+                            + "antérieure à maintenant.");
+        }
+
         Visite visite = new Visite();
 
         visite.setCodevisite(generateVisiteCode());
