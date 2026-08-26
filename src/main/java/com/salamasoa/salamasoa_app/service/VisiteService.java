@@ -169,12 +169,64 @@ public class VisiteService {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Visite introuvable : " + codevisite
                 ));
+        /*                                                    ← DÉBUT AJOUT
+         * Règle métier : un médecin ne peut consulter qu'un seul patient
+         * à la fois. Avant de démarrer une consultation, on vérifie qu'il
+         * n'en a pas déjà une en cours.
+         */
+        if (statut == StatutVisite.EN_COURS) {
+            String codemed = visite.getMedecin().getCodemed();
+
+            Optional<Visite> consultationEnCours = visiteRepository
+                    .findFirstByMedecinCodemedAndStatut(
+                            codemed,
+                            StatutVisite.EN_COURS
+                    );
+
+            /*
+             * Si la visite trouvée est celle qu'on met à jour, il n'y a pas
+             * de conflit : le statut est simplement réappliqué.
+             */
+            if (consultationEnCours.isPresent()
+                    && !consultationEnCours.get().getCodevisite()
+                    .equals(codevisite)) {
+
+                throw new IllegalArgumentException(
+                        "Ce médecin a déjà une consultation en cours avec "
+                                + formatPatientName(
+                                consultationEnCours.get())
+                                + ".\n\nTerminez ou annulez cette "
+                                + "consultation avant d'en démarrer "
+                                + "une nouvelle."
+                );
+            }
+        }
+        /*                                                      ← FIN AJOUT */
 
         visite.setStatut(statut);
 
         return visiteRepository.save(visite);
     }
+    /**
+     * Nom lisible du patient d'une visite, pour les messages d'erreur.
+     */
+    private String formatPatientName(Visite visite) {
+        if (visite.getPatient() == null) {
+            return visite.getCodevisite();
+        }
 
+        String nom = visite.getPatient().getNom() == null
+                ? ""
+                : visite.getPatient().getNom();
+
+        String prenom = visite.getPatient().getPrenom() == null
+                ? ""
+                : visite.getPatient().getPrenom();
+
+        String fullName = (nom + " " + prenom).trim();
+
+        return fullName.isBlank() ? visite.getCodevisite() : fullName;
+    }
     private void validateVisitData(
             String codepat,
             String codemed,

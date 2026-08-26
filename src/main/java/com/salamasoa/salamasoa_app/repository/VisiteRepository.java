@@ -49,6 +49,21 @@ public interface VisiteRepository extends JpaRepository<Visite, String> {
     );
 
     /**
+     * Recherche la visite qu'un médecin a actuellement en cours.
+     *
+     * Un médecin ne peut consulter qu'un patient à la fois : cette méthode
+     * sert à bloquer le démarrage d'une seconde consultation.
+     *
+     * L'EntityGraph charge le patient, afin de pouvoir citer son nom dans
+     * le message d'erreur sans provoquer de LazyInitializationException.
+     */
+    @EntityGraph(attributePaths = {"patient", "medecin"})
+    Optional<Visite> findFirstByMedecinCodemedAndStatut(
+            String codemed,
+            StatutVisite statut
+    );
+
+    /**
      * Récupère le dernier code visite de type :
      * VS-000001, VS-000002, etc.
      */
