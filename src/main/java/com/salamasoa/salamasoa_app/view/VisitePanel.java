@@ -19,11 +19,13 @@ import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 public class VisitePanel extends JPanel {
 
@@ -46,6 +48,10 @@ public class VisitePanel extends JPanel {
     private JLabel waitingValueLabel;
     private JLabel completedValueLabel;
 
+    // NOUVEAU : compteur pour ignorer les réponses périmées (voir plus bas)
+    private int visiteRequestCounter = 0;
+
+    private boolean loading = false;
     public VisitePanel(VisiteService _visiteService,PatientService _patientService,MedecinService _medecinService) {
         this.visiteService = _visiteService;
         this.medecinService = _medecinService;
@@ -117,83 +123,118 @@ public class VisitePanel extends JPanel {
 
         return headerPanel;
     }
-    private void openNewVisiteDialog() {
-        new SwingWorker<VisiteFormLists, Void>() {
 
+    /**
+     * Active ou désactive l'indicateur "chargement" : on change le curseur en
+     * sablier pendant que le SwingWorker tourne, puis on le remet à la normale.
+     */
+    private void setLoading(boolean value) {
+        this.loading = value;
+        if (value) {
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        } else {
+            setCursor(Cursor.getDefaultCursor());
+        }
+    }
+    private void openNewVisiteDialog() {
+        // 1) Charger les listes (patients et médecins actifs) via SwingWorker
+        setLoading(true); // désactive l'écran pendant le chargement
+        new SwingWorker<VisiteFormLists, Void>() {
             @Override
             protected VisiteFormLists doInBackground() {
-                List<Patient> activePatients = patientService
-                        .getAllPatients()
-                        .stream()
-                        .filter(Patient::isActif)
-                        .toList();
+                List<Patient> patients = patientService.getAllPatients().stream()
+                        .filter(Patient::isActif).collect(Collectors.toList());
+                List<Medecin> medecins = medecinService.getAllMedecins().stream()
+                        .filter(Medecin::isActif).collect(Collectors.toList());
+                return new VisiteFormLists(patients, medecins);
+            }
 
-                List<Medecin> activeMedecins = medecinService
-                        .getAllMedecins()
-                        .stream()
-                        .filter(Medecin::isActif)
-                        .toList();
+            @Override
+            protected void done() {
+                setLoading(false);
+                try {
+                    VisiteFormLists lists = get();
+                    VisiteFormDialog dialog = new VisiteFormDialog(
+                            (Frame) SwingUtilities.getWindowAncestor(VisitePanel.this),
+                            lists.patients(), lists.medecins());
 
-                return new VisiteFormLists(
-                        activePatients,
-                        activeMedecins
-                );
+                    dialog.setVisible(true); // bloque jusqu'à la fermeture
+
+                    // 2) Si l'utilisateur a confirmé (saved == true), on enregistre
+                    if (dialog.isSaved()) {
+                        enregistrerVisite(dialog);
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(VisitePanel.this,
+                            "Impossible de charger les médecins / patients.",
+                            "Erreur", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * Enregistre la visite saisie dans le formulaire {@code dialog}, puis recharge
+     * la liste des visites de la date sélectionnée.
+     */
+    private void enregistrerVisite(VisiteFormDialog dialog) {
+        Patient patient = dialog.getSelectedPatient();
+        Medecin medecin = dialog.getSelectedMedecin();
+        LocalDateTime dateHeure = dialog.getDateHeureVisite();
+
+        // Garde-fous : on ne tente l'enregistrement que si tout est renseigné
+        if (patient == null || medecin == null || dateHeure == null) {
+            JOptionPane.showMessageDialog(VisitePanel.this,
+                    "Veuillez renseigner le patient, le médecin, la date et l'heure.",
+                    "Formulaire incomplet", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // On crée une liste de tâches pour réutiliser la boucle de reprise au cas où
+        // l'enregistrement échoue (on affiche le message puis on réouvre le formulaire).
+        SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+            @Override
+            protected Boolean doInBackground() {
+                try {
+                    visiteService.createVisite(
+                            patient.getCodepat(), medecin.getCodemed(), dateHeure);
+                    return true;
+                } catch (IllegalArgumentException ex) {
+                    return false; // erreur métier (conflit d'horaire, patient inactif...)
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
             }
 
             @Override
             protected void done() {
                 try {
-                    VisiteFormLists formLists = get();
-
-                    if (formLists.patients().isEmpty()) {
-                        JOptionPane.showMessageDialog(
-                                VisitePanel.this,
-                                "Aucun patient actif n'est disponible.",
-                                "Aucun patient disponible",
-                                JOptionPane.WARNING_MESSAGE
-                        );
-                        return;
+                    Boolean success = get();
+                    if (Boolean.TRUE.equals(success)) {
+                        JOptionPane.showMessageDialog(VisitePanel.this,
+                                "Visite enregistrée avec succès.",
+                                "Succès", JOptionPane.INFORMATION_MESSAGE);
+                        // 3) Recharge la liste des visites pour la date courante
+                        loadVisitesForSelectedDate();
+                    } else {
+                        // Ré-affiche le formulaire pour corriger sans perdre la saisie
+                        JOptionPane.showMessageDialog(VisitePanel.this,
+                                "Enregistrement impossible : le médecin est déjà "
+                                        + "occupé à cet horaire, ou le patient est "
+                                        + "inactif.",
+                                "Enregistrement refusé", JOptionPane.WARNING_MESSAGE);
                     }
-
-                    if (formLists.medecins().isEmpty()) {
-                        JOptionPane.showMessageDialog(
-                                VisitePanel.this,
-                                "Aucun médecin actif n'est disponible.",
-                                "Aucun médecin disponible",
-                                JOptionPane.WARNING_MESSAGE
-                        );
-                        return;
-                    }
-
-                    Window window =
-                            SwingUtilities.getWindowAncestor(VisitePanel.this);
-
-                    VisiteFormDialog dialog = new VisiteFormDialog(
-                            window,
-                            formLists.patients(),
-                            formLists.medecins()
-                    );
-
-                    dialog.setVisible(true);
-
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-
-                } catch (ExecutionException exception) {
-                    String message = exception.getCause() == null
-                            ? exception.getMessage()
-                            : exception.getCause().getMessage();
-
-                    JOptionPane.showMessageDialog(
-                            VisitePanel.this,
-                            "Impossible de charger les listes :\n"
-                                    + message,
-                            "Erreur MySQL",
-                            JOptionPane.ERROR_MESSAGE
-                    );
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(VisitePanel.this,
+                            "Erreur lors de l'enregistrement de la visite : " +
+                                    ex.getMessage(),
+                            "Erreur", JOptionPane.ERROR_MESSAGE);
                 }
             }
-        }.execute();
+        };
+        worker.execute();
     }
 
     private record VisiteFormLists(
@@ -412,10 +453,17 @@ public class VisitePanel extends JPanel {
     /**
      * Récupère depuis MySQL les visites de la date sélectionnée.
      */
+    /**
+     * Récupère depuis MySQL les visites de la date sélectionnée.
+     */
     private void loadVisitesForSelectedDate() {
         LocalDate selectedDate = convertDateToLocalDate(
                 (Date) dateSpinner.getValue()
         );
+
+        // On mémorise l'identifiant de CETTE requête. Ce champ est lu et écrit
+        // uniquement sur l'EDT (dateSpinner et done()), donc pas de concurrence.
+        int requestId = ++visiteRequestCounter;
 
         new SwingWorker<List<Visite>, Void>() {
 
@@ -426,6 +474,12 @@ public class VisitePanel extends JPanel {
 
             @Override
             protected void done() {
+                // Si une requête plus récente a été lancée depuis, cette réponse
+                // est périmée : on l'ignore pour ne pas écraser la bonne liste.
+                if (requestId != visiteRequestCounter) {
+                    return;
+                }
+
                 try {
                     List<Visite> visites = get();
 

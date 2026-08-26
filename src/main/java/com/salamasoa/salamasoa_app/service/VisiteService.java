@@ -68,11 +68,14 @@ public class VisiteService {
         LocalDateTime start = date.atStartOfDay();
         LocalDateTime end = date.atTime(LocalTime.MAX);
 
-        return visiteRepository
-                .findByDateheureBetweenOrderByDateheureAsc(
-                        start,
-                        end
-                );
+        System.out.println(">>> getVisitesByDate : date demandée = " + date
+                + " | intervalle = [" + start + " -> " + end + "]");
+
+        List<Visite> resultats = visiteRepository
+                .findByDateheureBetweenOrderByDateheureAsc(start, end);
+
+        System.out.println(">>> Résultat : " + resultats.size() + " visite(s)");
+        return resultats;
     }
 
     /**
