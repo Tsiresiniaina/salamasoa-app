@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 
 public class VisitePanel extends JPanel {
 
-    private static final Color PAGE_BG = new Color(250, 247, 248);
+    private static final Color PAGE_BG = Color.WHITE;
     private static final Color CARD_BG = Color.WHITE;
     private static final Color PRIMARY_COLOR = new Color(199, 0, 61);
     private static final Color HOVER_ROW_COLOR = new Color(255, 232, 236);
