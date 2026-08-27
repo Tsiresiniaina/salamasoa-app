@@ -119,21 +119,22 @@ public class SidebarPanel extends JPanel {
         if (icon != null) {
             button.setIcon(icon);
         }
+
         button.setFont(new Font("Segoe UI", Font.BOLD, 14));
         button.setForeground(TEXT_COLOR);
-        button.setBackground(SIDEBAR_COLOR);
         button.setIconTextGap(12);
-
-        button.setFocusPainted(false);
-        button.setBorderPainted(false);
-        button.setContentAreaFilled(false);
-
         button.setHorizontalAlignment(SwingConstants.LEFT);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setBorder(new EmptyBorder(11, 10, 11, 10));
+
+        button.setOpaque(false);
+        button.setFocusPainted(false);
+        button.setContentAreaFilled(true);
+        button.setMargin(new Insets(11, 10, 11, 10)); // padding, PAS setBorder
 
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
         button.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        applyNavStyle(button, false);
 
         button.addActionListener(event -> {
             setActiveButton(button);
@@ -145,15 +146,27 @@ public class SidebarPanel extends JPanel {
 
     private void setActiveButton(JButton selectedButton) {
         if (activeButton != null) {
-            activeButton.setBackground(SIDEBAR_COLOR);
             activeButton.setForeground(TEXT_COLOR);
-            activeButton.setContentAreaFilled(false);
+            tintIcon(activeButton, TEXT_COLOR);
+            applyNavStyle(activeButton, false);
         }
 
-        selectedButton.setBackground(ACTIVE_COLOR);
         selectedButton.setForeground(PRIMARY_COLOR);
-        selectedButton.setContentAreaFilled(true);
+        tintIcon(selectedButton, PRIMARY_COLOR);
+        applyNavStyle(selectedButton, true);
 
         activeButton = selectedButton;
+    }
+
+    private void applyNavStyle(JButton button, boolean active) {
+        String bg = active ? "#FADDE6" : "#FAF7F8"; // ACTIVE_COLOR / SIDEBAR_COLOR
+        button.putClientProperty("FlatLaf.style",
+                "arc: 16;"
+                        + "borderWidth: 0;"
+                        + "focusWidth: 0;"
+                        + "innerFocusWidth: 0;"
+                        + "background: " + bg + ";"
+                        + "hoverBackground: " + bg + ";"
+                        + "pressedBackground: " + bg);
     }
 }
