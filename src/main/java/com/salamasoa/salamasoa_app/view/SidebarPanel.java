@@ -1,5 +1,7 @@
 package com.salamasoa.salamasoa_app.view;
 
+import com.formdev.flatlaf.extras.FlatSVGIcon;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -12,15 +14,7 @@ public class SidebarPanel extends JPanel {
     private static final Color ACTIVE_COLOR = new Color(250, 221, 230);
     private static final Color TEXT_COLOR = new Color(70, 70, 70);
 
-    /*
-     * Cette variable contient l'action à effectuer lorsqu'un bouton
-     * de navigation est cliqué.
-     *
-     * Exemple :
-     * navigationHandler.accept(MainFrame.PAGE_PATIENTS);
-     */
     private final Consumer<String> navigationHandler;
-
     private JButton activeButton;
 
     public SidebarPanel(Consumer<String> navigationHandler) {
@@ -33,11 +27,6 @@ public class SidebarPanel extends JPanel {
 
         add(createLogoPanel(), BorderLayout.NORTH);
         add(createNavigationPanel(), BorderLayout.CENTER);
-
-        /*
-         * Le bas du menu accueillait un bouton Déconnexion sans effet :
-         * il est retiré tant que la gestion de session n'existe pas.
-         */
     }
 
     private JPanel createLogoPanel() {
@@ -46,13 +35,15 @@ public class SidebarPanel extends JPanel {
         logoPanel.setLayout(new BoxLayout(logoPanel, BoxLayout.Y_AXIS));
         logoPanel.setBorder(new EmptyBorder(0, 2, 28, 0));
 
-        JLabel nameLabel = new JLabel("● SalamaSoa");
-        nameLabel.setFont(new Font("SansSerif", Font.BOLD, 18));
-        nameLabel.setForeground(PRIMARY_COLOR);
+        String hexColor = String.format("#%06x", (PRIMARY_COLOR.getRGB() & 0x00FFFFFF));
+
+        JLabel nameLabel = new JLabel("<html><span style='color:" + hexColor + "'>●</span> " +
+                "<b style='color:#1E293B'>Salama<span style='color:" + hexColor + "'>Soa</span></b></html>");
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel subtitleLabel = new JLabel("Centre médical");
-        subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 9));
+        subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
         subtitleLabel.setForeground(new Color(110, 110, 110));
         subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -68,47 +59,70 @@ public class SidebarPanel extends JPanel {
         navigationPanel.setBackground(SIDEBAR_COLOR);
         navigationPanel.setLayout(new BoxLayout(navigationPanel, BoxLayout.Y_AXIS));
 
-        /*
-         * Le tableau de bord n'est pas encore alimenté par de vraies
-         * données : il est retiré de la navigation en attendant.
-         * DashboardPanel reste dans le projet pour être rebranché plus tard.
-         */
-
+        // Note les chemins incluant /resources/
+        FlatSVGIcon iconVisites = createIcon("icons/visit.svg");
         JButton todayVisitButton = createNavigationButton(
-                "□   Visite du jour",
-                MainFrame.PAGE_VISITES
+                "Visites du jour",
+                MainFrame.PAGE_VISITES,
+                iconVisites
         );
 
+        FlatSVGIcon iconPatients = createIcon("icons/patient.svg");
         JButton patientsButton = createNavigationButton(
-                "♟   Patients",
-                MainFrame.PAGE_PATIENTS
+                "Patients",
+                MainFrame.PAGE_PATIENTS,
+                iconPatients
         );
 
+        FlatSVGIcon iconDoctors = createIcon("icons/doctor.svg");
         JButton doctorsButton = createNavigationButton(
-                "□   Médecin",
-                MainFrame.PAGE_MEDECINS
+                "Médecins",
+                MainFrame.PAGE_MEDECINS,
+                iconDoctors
         );
 
         navigationPanel.add(todayVisitButton);
-        navigationPanel.add(Box.createVerticalStrut(6));
+        navigationPanel.add(Box.createVerticalStrut(8));
 
         navigationPanel.add(patientsButton);
-        navigationPanel.add(Box.createVerticalStrut(6));
+        navigationPanel.add(Box.createVerticalStrut(8));
 
         navigationPanel.add(doctorsButton);
 
-        // Patients est la page affichée au démarrage.
         setActiveButton(patientsButton);
 
         return navigationPanel;
     }
 
-    private JButton createNavigationButton(String text, String pageName) {
-        JButton button = new JButton(text);
+    /**
+     * Crée une icône SVG FlatLaf redimensionnée et applique un filtre de couleur
+     * pour qu'elle s'adapte automatiquement à la couleur du texte du bouton.
+     */
+    private FlatSVGIcon createIcon(String path) {
+        FlatSVGIcon icon = new FlatSVGIcon(path, 18, 18);
 
-        button.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        if (!icon.hasFound()) {
+            System.err.println("SVG introuvable : " + path);
+        }
+
+        icon.setColorFilter(new FlatSVGIcon.ColorFilter(color -> TEXT_COLOR));
+        return icon;
+    }
+    private void tintIcon(JButton button, Color color) {
+        Icon icon = button.getIcon();
+        if (icon instanceof FlatSVGIcon svg) {
+            svg.setColorFilter(new FlatSVGIcon.ColorFilter(c -> color));
+        }
+    }
+    private JButton createNavigationButton(String text, String pageName, Icon icon) {
+        JButton button = new JButton(text);
+        if (icon != null) {
+            button.setIcon(icon);
+        }
+        button.setFont(new Font("Segoe UI", Font.BOLD, 14));
         button.setForeground(TEXT_COLOR);
         button.setBackground(SIDEBAR_COLOR);
+        button.setIconTextGap(12);
 
         button.setFocusPainted(false);
         button.setBorderPainted(false);
@@ -122,10 +136,7 @@ public class SidebarPanel extends JPanel {
         button.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         button.addActionListener(event -> {
-            // 1. Mettre le bouton cliqué en rose.
             setActiveButton(button);
-
-            // 2. Afficher la page correspondante dans MainFrame.
             navigationHandler.accept(pageName);
         });
 
