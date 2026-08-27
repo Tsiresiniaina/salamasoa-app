@@ -137,6 +137,21 @@ public class TopBarPanel extends JPanel {
         searchField.setText("");
     }
 
+    /**
+     * Change le texte d'invite du champ.
+     *
+     * MainFrame l'adapte à la page affichée, pour indiquer ce que la
+     * barre recherche à cet endroit.
+     */
+    public void setPlaceholder(String placeholder) {
+        searchField.putClientProperty(
+                "JTextField.placeholderText",
+                placeholder
+        );
+
+        searchField.repaint();
+    }
+
     public String getSearchText() {
         return searchField.getText().trim();
     }

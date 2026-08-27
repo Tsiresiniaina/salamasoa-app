@@ -25,6 +25,7 @@ public class MainFrame extends JFrame {
      */
     private TopBarPanel topBarPanel;
     private PatientPanel patientPanel;
+    private MedecinPanel medecinPanel;
 
     // Page actuellement affichée, pour savoir si la recherche s'applique.
     private String currentPage = PAGE_PATIENTS;
@@ -95,10 +96,12 @@ public class MainFrame extends JFrame {
         patientPanel = new PatientPanel(patientService);
         pagesPanel.add(patientPanel, PAGE_PATIENTS);
 
-        pagesPanel.add(
-                new MedecinPanel(medecinService),
-                PAGE_MEDECINS
-        );
+        /*
+         * Conservé comme le panneau Patients : la barre de recherche doit
+         * pouvoir lui transmettre le mot-clé saisi.
+         */
+        medecinPanel = new MedecinPanel(medecinService);
+        pagesPanel.add(medecinPanel, PAGE_MEDECINS);
 
         rightPanel.add(pagesPanel, BorderLayout.CENTER);
         mainPanel.add(rightPanel, BorderLayout.CENTER);
@@ -117,45 +120,64 @@ public class MainFrame extends JFrame {
         cardLayout.show(pagesPanel, pageName);
         currentPage = pageName;
 
-        /*
-         * La recherche ne concerne pour l'instant que les patients.
-         * En quittant cette page, on vide le champ afin de ne pas laisser
-         * un filtre actif invisible lors du retour.
-         */
-        if (!PAGE_PATIENTS.equals(pageName)
-                && topBarPanel != null
-                && !topBarPanel.getSearchText().isEmpty()) {
+        if (topBarPanel == null) {
+            return;
+        }
 
+        boolean rechercheDisponible = isSearchablePage(pageName);
+
+        /*
+         * En changeant de page, on repart d'une recherche vide : un filtre
+         * hérité de la page précédente donnerait une liste incomplète sans
+         * que l'utilisateur comprenne pourquoi.
+         */
+        if (!topBarPanel.getSearchText().isEmpty()) {
             topBarPanel.clearSearch();
         }
 
-        // Le champ n'est utile que sur la page Patients.
-        if (topBarPanel != null) {
-            topBarPanel.getSearchField()
-                    .setEnabled(PAGE_PATIENTS.equals(pageName));
+        topBarPanel.getSearchField().setEnabled(rechercheDisponible);
+
+        // Le texte d'invite indique ce que la barre recherche ici.
+        if (PAGE_MEDECINS.equals(pageName)) {
+            topBarPanel.setPlaceholder(
+                    "Rechercher un médecin : nom, code ou grade..."
+            );
+
+        } else if (PAGE_PATIENTS.equals(pageName)) {
+            topBarPanel.setPlaceholder(
+                    "Rechercher un patient : nom ou code..."
+            );
+
+        } else {
+            topBarPanel.setPlaceholder(
+                    "Recherche indisponible sur cette page"
+            );
         }
     }
 
     /**
-     * Transmet le mot-clé saisi à la liste des patients.
+     * Indique si la page affichée gère la recherche.
+     */
+    private boolean isSearchablePage(String pageName) {
+        return PAGE_PATIENTS.equals(pageName)
+                || PAGE_MEDECINS.equals(pageName);
+    }
+
+    /**
+     * Transmet le mot-clé saisi à la liste affichée.
      *
-     * Appelée à chaque frappe par TopBarPanel.
+     * Appelée à chaque frappe par TopBarPanel. Le panneau destinataire
+     * dépend de la page courante.
      */
     private void onSearch(String keyword) {
-        if (patientPanel == null) {
+        if (PAGE_PATIENTS.equals(currentPage) && patientPanel != null) {
+            patientPanel.applySearch(keyword);
             return;
         }
 
-        /*
-         * Le filtrage n'a de sens que sur la page Patients. Le champ y est
-         * de toute façon désactivé ailleurs, mais ce garde-fou évite un
-         * filtrage fantôme si la page change pendant la saisie.
-         */
-        if (!PAGE_PATIENTS.equals(currentPage)) {
-            return;
+        if (PAGE_MEDECINS.equals(currentPage) && medecinPanel != null) {
+            medecinPanel.applySearch(keyword);
         }
-
-        patientPanel.applySearch(keyword);
     }
 
     /**

@@ -35,6 +35,12 @@ public class MedecinPanel extends JPanel {
 
     private List<Medecin> allMedecins = new ArrayList<>();
 
+    /*
+     * Mot-clé courant de la barre de recherche du haut.
+     * Vide = aucun filtrage par le texte.
+     */
+    private String searchKeyword = "";
+
     public MedecinPanel(MedecinService medecinService) {
         this.medecinService = medecinService;
 
@@ -283,6 +289,53 @@ public class MedecinPanel extends JPanel {
     }
 
     /**
+     * Applique le mot-clé de recherche venant de la barre du haut.
+     *
+     * Le filtrage se fait en mémoire sur les médecins déjà chargés :
+     * pas de requête à la base à chaque frappe. Le résultat se combine
+     * avec le filtre par grade du panneau.
+     */
+    public void applySearch(String keyword) {
+        this.searchKeyword = keyword == null ? "" : keyword.trim();
+        displayMedecins(allMedecins);
+    }
+
+    /**
+     * Indique si un médecin correspond au mot-clé saisi.
+     *
+     * La recherche porte sur le nom, le prénom, le code médecin et le
+     * grade, sans tenir compte de la casse.
+     */
+    private boolean matchesSearch(Medecin medecin) {
+        if (searchKeyword.isEmpty()) {
+            return true;
+        }
+
+        String keyword = searchKeyword.toLowerCase();
+
+        String nom = medecin.getNom() == null
+                ? ""
+                : medecin.getNom().toLowerCase();
+
+        String prenom = medecin.getPrenom() == null
+                ? ""
+                : medecin.getPrenom().toLowerCase();
+
+        String codemed = medecin.getCodemed() == null
+                ? ""
+                : medecin.getCodemed().toLowerCase();
+
+        String grade = medecin.getGrade() == null
+                ? ""
+                : medecin.getGrade().toLowerCase();
+
+        return nom.contains(keyword)
+                || prenom.contains(keyword)
+                || codemed.contains(keyword)
+                || grade.contains(keyword);
+    }
+
+    /**
      * Affiche les médecins selon le grade sélectionné.
      */
     private void displayMedecins(List<Medecin> medecins) {
@@ -297,7 +350,8 @@ public class MedecinPanel extends JPanel {
                             || medecin.getGrade()
                             .equalsIgnoreCase(selectedGrade);
 
-            if (!mustBeDisplayed) {
+            // Le filtre de grade et la recherche s'appliquent ensemble.
+            if (!mustBeDisplayed || !matchesSearch(medecin)) {
                 continue;
             }
 
@@ -369,8 +423,6 @@ public class MedecinPanel extends JPanel {
                 status.equals("Actif") ? "Désactiver" : "Activer"
         );
 
-        JMenuItem deleteItem = new JMenuItem("Supprimer");
-
         editItem.addActionListener(actionEvent ->
                 openEditMedecinDialog(codemed)
         );
@@ -379,14 +431,10 @@ public class MedecinPanel extends JPanel {
                 toggleMedecinStatus(codemed)
         );
 
-        deleteItem.addActionListener(actionEvent ->
-                confirmAndDeleteMedecin(codemed)
-        );
 
         popupMenu.add(editItem);
         popupMenu.addSeparator();
         popupMenu.add(toggleStatusItem);
-        popupMenu.add(deleteItem);
 
         popupMenu.show(
                 medecinTable,
@@ -510,61 +558,6 @@ public class MedecinPanel extends JPanel {
                 } catch (ExecutionException exception) {
                     showMedecinActionError(
                             "Impossible de modifier le statut du médecin.",
-                            exception
-                    );
-                }
-            }
-        }.execute();
-    }
-
-    private void confirmAndDeleteMedecin(String codemed) {
-        int choice = JOptionPane.showConfirmDialog(
-                this,
-                "Voulez-vous vraiment supprimer le médecin : "
-                        + codemed + " ?\n\n"
-                        + "Cette action est définitive.",
-                "Confirmation de suppression",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE
-        );
-
-        if (choice != JOptionPane.YES_OPTION) {
-            return;
-        }
-
-        deleteMedecin(codemed);
-    }
-
-    private void deleteMedecin(String codemed) {
-        new SwingWorker<Void, Void>() {
-
-            @Override
-            protected Void doInBackground() {
-                medecinService.deleteMedecin(codemed);
-                return null;
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    get();
-
-                    JOptionPane.showMessageDialog(
-                            MedecinPanel.this,
-                            "Le médecin " + codemed
-                                    + " a été supprimé avec succès.",
-                            "Suppression réussie",
-                            JOptionPane.INFORMATION_MESSAGE
-                    );
-
-                    loadMedecins();
-
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-
-                } catch (ExecutionException exception) {
-                    showMedecinActionError(
-                            "Impossible de supprimer le médecin.",
                             exception
                     );
                 }
