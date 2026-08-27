@@ -39,6 +39,12 @@ public class PatientPanel extends JPanel {
      */
     private List<Patient> allPatients = new ArrayList<>();
 
+    /*
+     * Mot-clé courant de la barre de recherche du haut.
+     * Vide = aucun filtrage par le texte.
+     */
+    private String searchKeyword = "";
+
     public PatientPanel(PatientService patientService) {
         this.patientService = patientService;
 
@@ -290,6 +296,48 @@ public class PatientPanel extends JPanel {
     /**
      * Met à jour les lignes du JTable selon le filtre choisi.
      */
+    /**
+     * Applique le mot-clé de recherche venant de la barre du haut.
+     *
+     * Le filtrage se fait en mémoire sur les patients déjà chargés :
+     * pas de requête à la base à chaque frappe. Le résultat se combine
+     * avec le filtre Actif / Inactif du panneau.
+     */
+    public void applySearch(String keyword) {
+        this.searchKeyword = keyword == null ? "" : keyword.trim();
+        displayPatients(allPatients);
+    }
+
+    /**
+     * Indique si un patient correspond au mot-clé saisi.
+     *
+     * La recherche porte sur le nom, le prénom et le code patient,
+     * sans tenir compte de la casse.
+     */
+    private boolean matchesSearch(Patient patient) {
+        if (searchKeyword.isEmpty()) {
+            return true;
+        }
+
+        String keyword = searchKeyword.toLowerCase();
+
+        String nom = patient.getNom() == null
+                ? ""
+                : patient.getNom().toLowerCase();
+
+        String prenom = patient.getPrenom() == null
+                ? ""
+                : patient.getPrenom().toLowerCase();
+
+        String codepat = patient.getCodepat() == null
+                ? ""
+                : patient.getCodepat().toLowerCase();
+
+        return nom.contains(keyword)
+                || prenom.contains(keyword)
+                || codepat.contains(keyword);
+    }
+
     private void displayPatients(List<Patient> patients) {
         tableModel.setRowCount(0);
 
@@ -305,7 +353,8 @@ public class PatientPanel extends JPanel {
                             || (selectedStatus.equals("Inactif")
                             && !patient.isActif());
 
-            if (!mustBeDisplayed) {
+            // Le filtre de statut et la recherche s'appliquent ensemble.
+            if (!mustBeDisplayed || !matchesSearch(patient)) {
                 continue;
             }
 
@@ -385,27 +434,27 @@ public class PatientPanel extends JPanel {
         JPopupMenu popupMenu = new JPopupMenu();
 
         JMenuItem editItem = new JMenuItem("Modifier");
+
+        /*
+         * Un patient ne se supprime pas : ses visites passées constituent
+         * un historique médical qu'il faut conserver. Lorsqu'il n'est plus
+         * pris en charge, on le désactive.
+         */
         JMenuItem toggleStatusItem = new JMenuItem(
                 status.equals("Actif") ? "Désactiver" : "Activer"
         );
-        JMenuItem deleteItem = new JMenuItem("Supprimer");
 
         editItem.addActionListener(actionEvent ->
                 openEditPatientDialog(codepat)
         );
 
         toggleStatusItem.addActionListener(actionEvent ->
-                togglePatientStatus(codepat)
-        );
-
-        deleteItem.addActionListener(actionEvent ->
-                confirmAndDeletePatient(codepat)
+                confirmAndToggleStatus(codepat, status)
         );
 
         popupMenu.add(editItem);
         popupMenu.addSeparator();
         popupMenu.add(toggleStatusItem);
-        popupMenu.add(deleteItem);
 
         popupMenu.show(
                 patientTable,
@@ -539,59 +588,36 @@ public class PatientPanel extends JPanel {
         }.execute();
     }
 
-    private void confirmAndDeletePatient(String codepat) {
-        int choice = JOptionPane.showConfirmDialog(
-                this,
-                "Voulez-vous vraiment supprimer le patient : "
-                        + codepat + " ?\n\n"
-                        + "Cette action est définitive.",
-                "Confirmation de suppression",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE
-        );
+    /**
+     * Demande confirmation avant de désactiver un patient.
+     *
+     * La réactivation, elle, est sans conséquence : elle s'applique
+     * directement.
+     */
+    private void confirmAndToggleStatus(String codepat, String status) {
+        boolean desactivation = status.equals("Actif");
 
-        if (choice != JOptionPane.YES_OPTION) {
-            return;
+        if (desactivation) {
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "Voulez-vous vraiment désactiver le patient "
+                            + codepat + " ?\n\n"
+                            + "Il n'apparaîtra plus dans les listes de "
+                            + "sélection et ne pourra plus recevoir de "
+                            + "nouvelle visite.\n"
+                            + "Son historique est conservé, et vous pourrez "
+                            + "le réactiver à tout moment.",
+                    "Confirmation de désactivation",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+
+            if (choice != JOptionPane.YES_OPTION) {
+                return;
+            }
         }
 
-        deletePatient(codepat);
-    }
-
-    private void deletePatient(String codepat) {
-        new SwingWorker<Void, Void>() {
-
-            @Override
-            protected Void doInBackground() {
-                patientService.deletePatient(codepat);
-                return null;
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    get();
-
-                    JOptionPane.showMessageDialog(
-                            PatientPanel.this,
-                            "Le patient " + codepat
-                                    + " a été supprimé avec succès.",
-                            "Suppression réussie",
-                            JOptionPane.INFORMATION_MESSAGE
-                    );
-
-                    loadPatients();
-
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-
-                } catch (ExecutionException exception) {
-                    showActionError(
-                            "Impossible de supprimer le patient.",
-                            exception
-                    );
-                }
-            }
-        }.execute();
+        togglePatientStatus(codepat);
     }
 
     private void showActionError(

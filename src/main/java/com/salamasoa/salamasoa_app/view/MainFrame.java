@@ -20,6 +20,15 @@ public class MainFrame extends JFrame {
     private final CardLayout cardLayout;
     private final JPanel pagesPanel;
 
+    /*
+     * Conservés pour relier la barre de recherche à la liste des patients.
+     */
+    private TopBarPanel topBarPanel;
+    private PatientPanel patientPanel;
+
+    // Page actuellement affichée, pour savoir si la recherche s'applique.
+    private String currentPage = PAGE_PATIENTS;
+
     //SERVICES
     private final PatientService patientService;
     private final MedecinService medecinService;
@@ -52,8 +61,8 @@ public class MainFrame extends JFrame {
         JPanel rightPanel = new JPanel(new BorderLayout());
         rightPanel.setBackground(Color.WHITE);
 
-        // Barre de recherche.
-        TopBarPanel topBarPanel = new TopBarPanel();
+        // Barre de recherche : chaque frappe filtre la liste des patients.
+        topBarPanel = new TopBarPanel(this::onSearch);
         rightPanel.add(topBarPanel, BorderLayout.NORTH);
 
         /*
@@ -79,8 +88,12 @@ public class MainFrame extends JFrame {
                 PAGE_VISITES
         );
 
-        // Page Patients réelle, déjà créée.
-        pagesPanel.add(new PatientPanel(patientService), PAGE_PATIENTS);
+        /*
+         * Le panneau est conservé dans un champ : la barre de recherche
+         * doit pouvoir lui transmettre le mot-clé saisi.
+         */
+        patientPanel = new PatientPanel(patientService);
+        pagesPanel.add(patientPanel, PAGE_PATIENTS);
 
         pagesPanel.add(
                 new MedecinPanel(medecinService),
@@ -102,6 +115,47 @@ public class MainFrame extends JFrame {
      */
     public void showPage(String pageName) {
         cardLayout.show(pagesPanel, pageName);
+        currentPage = pageName;
+
+        /*
+         * La recherche ne concerne pour l'instant que les patients.
+         * En quittant cette page, on vide le champ afin de ne pas laisser
+         * un filtre actif invisible lors du retour.
+         */
+        if (!PAGE_PATIENTS.equals(pageName)
+                && topBarPanel != null
+                && !topBarPanel.getSearchText().isEmpty()) {
+
+            topBarPanel.clearSearch();
+        }
+
+        // Le champ n'est utile que sur la page Patients.
+        if (topBarPanel != null) {
+            topBarPanel.getSearchField()
+                    .setEnabled(PAGE_PATIENTS.equals(pageName));
+        }
+    }
+
+    /**
+     * Transmet le mot-clé saisi à la liste des patients.
+     *
+     * Appelée à chaque frappe par TopBarPanel.
+     */
+    private void onSearch(String keyword) {
+        if (patientPanel == null) {
+            return;
+        }
+
+        /*
+         * Le filtrage n'a de sens que sur la page Patients. Le champ y est
+         * de toute façon désactivé ailleurs, mais ce garde-fou évite un
+         * filtrage fantôme si la page change pendant la saisie.
+         */
+        if (!PAGE_PATIENTS.equals(currentPage)) {
+            return;
+        }
+
+        patientPanel.applySearch(keyword);
     }
 
     /**

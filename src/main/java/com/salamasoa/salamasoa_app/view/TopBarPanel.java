@@ -3,9 +3,12 @@ package com.salamasoa.salamasoa_app.view;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.util.function.Consumer;
 
 public class TopBarPanel extends JPanel {
 
@@ -16,12 +19,32 @@ public class TopBarPanel extends JPanel {
     private static final Color TEXT_COLOR = new Color(60, 60, 65);
 
     private static final String PLACEHOLDER_TEXT =
-            "Search patients, doctors, or ID...";
+            "Rechercher un patient : nom ou code...";
 
     private JTextField searchField;
 
+    /*
+     * Action déclenchée à chaque frappe, avec le texte saisi.
+     * MainFrame s'en sert pour filtrer la liste des patients.
+     */
+    private final Consumer<String> searchHandler;
+
+    /*
+     * Constructeur conservé pour ne pas casser un appel existant :
+     * la barre s'affiche alors sans être reliée à une recherche.
+     */
     public TopBarPanel() {
-        this.searchField = searchField;
+        this(keyword -> { });
+    }
+
+    /**
+     * @param searchHandler reçoit le texte saisi à chaque frappe
+     */
+    public TopBarPanel(Consumer<String> searchHandler) {
+        this.searchHandler = searchHandler == null
+                ? keyword -> { }
+                : searchHandler;
+
         setBackground(TOP_BAR_COLOR);
         setPreferredSize(new Dimension(0, 58));
         setBorder(new EmptyBorder(10, 30, 10, 30));
@@ -42,13 +65,24 @@ public class TopBarPanel extends JPanel {
         searchIconLabel.setForeground(PLACEHOLDER_COLOR);
         searchIconLabel.setBorder(new EmptyBorder(0, 10, 0, 0));
 
-        searchField = new JTextField(PLACEHOLDER_TEXT);
+        searchField = new JTextField();
         searchField.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        searchField.setForeground(PLACEHOLDER_COLOR);
+        searchField.setForeground(TEXT_COLOR);
         searchField.setBackground(SEARCH_BACKGROUND);
         searchField.setBorder(null);
 
-        configurePlaceholder();
+        /*
+         * Placeholder natif de FlatLaf : le champ reste réellement vide
+         * tant que rien n'est saisi. L'ancienne astuce, qui écrivait le
+         * texte d'invite dans le champ, aurait déclenché une recherche
+         * sur ce texte à chaque perte de focus.
+         */
+        searchField.putClientProperty(
+                "JTextField.placeholderText",
+                PLACEHOLDER_TEXT
+        );
+
+        configureSearchListener();
 
         searchBox.add(searchIconLabel, BorderLayout.WEST);
         searchBox.add(searchField, BorderLayout.CENTER);
@@ -56,35 +90,55 @@ public class TopBarPanel extends JPanel {
         return searchBox;
     }
 
-    private void configurePlaceholder() {
-        searchField.addFocusListener(new FocusAdapter() {
+    /**
+     * Déclenche la recherche à chaque modification du champ.
+     *
+     * Le filtrage s'applique aux patients déjà chargés en mémoire :
+     * aucune requête n'est envoyée à la base à chaque frappe.
+     */
+    private void configureSearchListener() {
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
 
             @Override
-            public void focusGained(FocusEvent event) {
-                if (searchField.getText().equals(PLACEHOLDER_TEXT)) {
-                    searchField.setText("");
-                    searchField.setForeground(TEXT_COLOR);
-                }
+            public void insertUpdate(DocumentEvent event) {
+                fireSearch();
             }
 
             @Override
-            public void focusLost(FocusEvent event) {
-                if (searchField.getText().trim().isEmpty()) {
-                    searchField.setText(PLACEHOLDER_TEXT);
-                    searchField.setForeground(PLACEHOLDER_COLOR);
+            public void removeUpdate(DocumentEvent event) {
+                fireSearch();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent event) {
+                fireSearch();
+            }
+        });
+
+        // Échap vide la recherche et réaffiche toute la liste.
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent event) {
+                if (event.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    clearSearch();
                 }
             }
         });
     }
 
+    private void fireSearch() {
+        searchHandler.accept(getSearchText());
+    }
+
+    /**
+     * Vide le champ de recherche et notifie l'écoute.
+     */
+    public void clearSearch() {
+        searchField.setText("");
+    }
+
     public String getSearchText() {
-        String text = searchField.getText().trim();
-
-        if (text.equals(PLACEHOLDER_TEXT)) {
-            return "";
-        }
-
-        return text;
+        return searchField.getText().trim();
     }
 
     public JTextField getSearchField() {
