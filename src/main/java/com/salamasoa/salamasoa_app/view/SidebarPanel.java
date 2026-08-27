@@ -33,7 +33,11 @@ public class SidebarPanel extends JPanel {
 
         add(createLogoPanel(), BorderLayout.NORTH);
         add(createNavigationPanel(), BorderLayout.CENTER);
-        add(createBottomPanel(), BorderLayout.SOUTH);
+
+        /*
+         * Le bas du menu accueillait un bouton Déconnexion sans effet :
+         * il est retiré tant que la gestion de session n'existe pas.
+         */
     }
 
     private JPanel createLogoPanel() {
@@ -64,10 +68,11 @@ public class SidebarPanel extends JPanel {
         navigationPanel.setBackground(SIDEBAR_COLOR);
         navigationPanel.setLayout(new BoxLayout(navigationPanel, BoxLayout.Y_AXIS));
 
-        JButton dashboardButton = createNavigationButton(
-                "▦   Tableau de bord",
-                MainFrame.PAGE_DASHBOARD
-        );
+        /*
+         * Le tableau de bord n'est pas encore alimenté par de vraies
+         * données : il est retiré de la navigation en attendant.
+         * DashboardPanel reste dans le projet pour être rebranché plus tard.
+         */
 
         JButton todayVisitButton = createNavigationButton(
                 "□   Visite du jour",
@@ -84,9 +89,6 @@ public class SidebarPanel extends JPanel {
                 MainFrame.PAGE_MEDECINS
         );
 
-        navigationPanel.add(dashboardButton);
-        navigationPanel.add(Box.createVerticalStrut(6));
-
         navigationPanel.add(todayVisitButton);
         navigationPanel.add(Box.createVerticalStrut(6));
 
@@ -99,44 +101,6 @@ public class SidebarPanel extends JPanel {
         setActiveButton(patientsButton);
 
         return navigationPanel;
-    }
-
-    private JPanel createBottomPanel() {
-        JPanel bottomPanel = new JPanel(new BorderLayout());
-        bottomPanel.setBackground(SIDEBAR_COLOR);
-        bottomPanel.setBorder(new EmptyBorder(15, 0, 0, 0));
-
-        JSeparator separator = new JSeparator();
-        separator.setForeground(new Color(235, 230, 232));
-        bottomPanel.add(separator, BorderLayout.NORTH);
-
-        JButton logoutButton = new JButton("⇥  Déconnexion");
-        logoutButton.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        logoutButton.setForeground(TEXT_COLOR);
-        logoutButton.setBackground(SIDEBAR_COLOR);
-        logoutButton.setFocusPainted(false);
-        logoutButton.setBorderPainted(false);
-        logoutButton.setContentAreaFilled(false);
-        logoutButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        logoutButton.setHorizontalAlignment(SwingConstants.LEFT);
-        logoutButton.setBorder(new EmptyBorder(16, 8, 5, 8));
-
-        /*
-         * Plus tard, ce bouton servira à fermer la session
-         * et revenir à une page de connexion.
-         */
-        logoutButton.addActionListener(event ->
-                JOptionPane.showMessageDialog(
-                        this,
-                        "La fonctionnalité de déconnexion sera ajoutée plus tard.",
-                        "Déconnexion",
-                        JOptionPane.INFORMATION_MESSAGE
-                )
-        );
-
-        bottomPanel.add(logoutButton, BorderLayout.CENTER);
-
-        return bottomPanel;
     }
 
     private JButton createNavigationButton(String text, String pageName) {

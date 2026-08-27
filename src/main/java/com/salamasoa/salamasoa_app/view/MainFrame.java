@@ -12,6 +12,11 @@ import java.awt.*;
 @Component
 public class MainFrame extends JFrame {
 
+    /*
+     * Conservée pour le jour où le tableau de bord affichera de vraies
+     * données : il suffira de réajouter DashboardPanel à pagesPanel et
+     * son bouton dans SidebarPanel.
+     */
     public static final String PAGE_DASHBOARD = "DASHBOARD";
     public static final String PAGE_VISITES = "VISITES";
     public static final String PAGE_PATIENTS = "PATIENTS";
@@ -74,11 +79,11 @@ public class MainFrame extends JFrame {
         pagesPanel = new JPanel(cardLayout);
         pagesPanel.setBackground(Color.WHITE);
 
-        // Pages provisoires : elles seront remplacées progressivement.
-        pagesPanel.add(
-                new DashboardPanel(),
-                PAGE_DASHBOARD
-        );
+        /*
+         * Le tableau de bord n'est pas ajouté : ses chiffres sont encore
+         * des valeurs d'exemple. La classe DashboardPanel est conservée
+         * dans le projet pour être rebranchée une fois alimentée.
+         */
 
         pagesPanel.add(
                 new VisitePanel(
